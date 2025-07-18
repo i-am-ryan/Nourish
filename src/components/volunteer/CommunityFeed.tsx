@@ -10,8 +10,8 @@ const CommunityFeed = () => {
   const impactMoments = [
     {
       id: 1,
-      image: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=2070',
-      volunteer: 'Sarah M.',
+       image: "/lovable-uploads/annie-spratt-cVEOh_JJmEE-unsplash.jpg",
+      volunteer: 'Tebogo M.',
       action: 'delivered fresh vegetables to Soweto Community Kitchen',
       time: '2 hours ago',
       likes: 12,
@@ -19,7 +19,7 @@ const CommunityFeed = () => {
     },
     {
       id: 2,
-      image: 'https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?q=80&w=2070',
+      image: "/lovable-uploads/trung-manh-cong-RD8RDzQx1cE-unsplash.jpg",
       volunteer: 'Community Member',
       action: 'received food support from NourishSA',
       time: '5 hours ago',
@@ -28,7 +28,7 @@ const CommunityFeed = () => {
     },
     {
       id: 3,
-      image: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?q=80&w=2070',
+      image: "/lovable-uploads/anthony-georges-a2IM2snkO1Y-unsplash.jpg",
       volunteer: 'Mike R.',
       action: 'rescued 50kg of surplus bread from local bakery',
       time: '1 day ago',

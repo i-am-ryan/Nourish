@@ -53,7 +53,7 @@ const Surplus = () => {
       icon: Users,
       color: "from-orange-400 to-orange-600",
       bgColor: "bg-orange-100",
-      image: "/lovable-uploads/joel-muniz-A4Ax1ApccfA-unsplash.jpg"
+      image: "/lovable-uploads/alexander-simonsen-44al1GlFVxo-unsplash.jpg"
     },
     {
       title: "Real-Time Tracking",

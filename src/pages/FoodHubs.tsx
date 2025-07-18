@@ -8,6 +8,7 @@ import { MapPin, Clock, Phone, Users, Map as MapIcon } from 'lucide-react';
 import HubLoginModal from '@/components/hubs/HubLoginModal';
 import SuburbSelector from '@/components/hubs/SuburbSelector';
 import HubCard from '@/components/hubs/HubCard';
+import bannerImage from '@/assets/food-hubs-banner.jpg';
 
 const FoodHubs = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -123,21 +124,32 @@ const FoodHubs = () => {
     <div className="min-h-screen pt-16 bg-gradient-to-br from-green-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         
-        {/* Welcome Section */}
-
-        
+        {/* Welcome Section with Banner */}
         <motion.div 
           className="text-center mb-12"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            Discover Local Food Hubs
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Find food assistance near you. Browse trusted community food hubs serving Johannesburg and Pretoria suburbs.
-          </p>
+          <div className="relative w-full h-64 md:h-80 lg:h-96 rounded-2xl overflow-hidden mb-8">
+            <img 
+              src={bannerImage} 
+              alt="Community food hub showing volunteers and families"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <div className="text-white text-center px-4">
+                <h1 className="text-4xl md:text-6xl font-bold mb-4">
+                  Discover Local 
+                  <span className="text-green-400"> Food Hubs</span>
+                </h1>
+                
+                <p className="text-lg md:text-xl max-w-3xl mx-auto">
+                  Find food assistance near you. Browse trusted community food hubs serving Johannesburg and Pretoria suburbs.
+                </p>
+              </div>
+            </div>
+          </div>
         </motion.div>
 
         <AnimatePresence mode="wait">
