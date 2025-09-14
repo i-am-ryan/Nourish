@@ -11,6 +11,7 @@ export type Hub = {
   city: string;
   suburb: string;
   address: string | null;
+  address_line1: string | null; // Add this line
   latitude: number | null;
   longitude: number | null;
   phone: string | null;

@@ -29,19 +29,31 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 
 const FOOD_STORY_IMAGES = [
-  "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1600&auto=format&fit=crop", // food prep
-  "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?q=80&w=1600&auto=format&fit=crop", // food distribution  
-  "https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=80&w=1600&auto=format&fit=crop", // community kitchen
-  "https://images.unsplash.com/photo-1593113598332-cd288d649433?q=80&w=1600&auto=format&fit=crop", // food donation
-  "https://images.unsplash.com/photo-1559311990-29c1fe69ac31?q=80&w=1600&auto=format&fit=crop", // volunteers
-  "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=1600&auto=format&fit=crop", // fresh vegetables
-  "https://images.unsplash.com/photo-1576765608148-5a38f984b740?q=80&w=1600&auto=format&fit=crop", // food boxes
-  "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1600&auto=format&fit=crop"  // bread/bakery
+  "/lovable-uploads/ashwini-chaudhary-monty-_mj-M7clbKc-unsplash.jpg",
+  "/lovable-uploads/annie-spratt-NAt6a3c3nz0-unsplash.jpg",
+  "/lovable-uploads/uzuri-safaris-tanzania-w9E7dKCEUdI-unsplash.jpg",
+  "/lovable-uploads/michael-ali-Mj0usFZ1oz8-unsplash.jpg",
+  "/lovable-uploads/cdc-CCofbL9nLd8-unsplash.jpg",
+  "/lovable-uploads/polina-kuzovkova-URihfzXq8O4-unsplash.jpg",
+  "/lovable-uploads/ben-moreland-zaedsq0q1BM-unsplash.jpg",
+  "/lovable-uploads/joel-muniz-BErJJL_KsjA-unsplash.jpg",
+  "/lovable-uploads/tyson-gorbBYbo6KM-unsplash.jpg",
+  "/lovable-uploads/michael-ali-PuwTnaVGJYA-unsplash.jpg",
 ];
 const getStoryImage = (storyId: string, fallbackImage?: string) => {
   if (fallbackImage) return fallbackImage;
-  const hash = storyId.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-  return FOOD_STORY_IMAGES[Math.abs(hash) % FOOD_STORY_IMAGES.length];
+  
+  // Create a more distributed hash function
+  let hash = 0;
+  for (let i = 0; i < storyId.length; i++) {
+    const char = storyId.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Use absolute value and ensure we get a good distribution
+  const index = Math.abs(hash) % FOOD_STORY_IMAGES.length;
+  return FOOD_STORY_IMAGES[index];
 };
 
 /** -----------------------------------------------------------------
@@ -51,29 +63,24 @@ const CURATED = [
   {
     id: "11111111-1111-4111-8111-111111111111",
     author: "Tebogo M.",
-    story_text: "“Seeing the smiles when fresh food arrives never gets old! 🥬🌟”",
-    image_url:
-      "https://images.unsplash.com/photo-1511690656952-34342bb7c2f2?q=80&w=1600&auto=format&fit=crop", // crates of produce
+    story_text: "Seeing the smiles when fresh food arrives never gets old! 🥬🌟",
+    image_url: "/lovable-uploads/michael-ali-Mj0usFZ1oz8-unsplash.jpg",
     is_featured: true,
     created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: "22222222-2222-4222-8222-222222222222",
     author: "Community Member",
-    story_text:
-      "“Thank you to all volunteers! This food came at the perfect time for our family. Your kindness means everything.”",
-    image_url:
-      "https://images.unsplash.com/photo-1565557623262-b51c2513a641?q=80&w=1600&auto=format&fit=crop", // packing food boxes
+    story_text: "Thank you to all volunteers! This food came at the perfect time for our family. Your kindness means everything.",
+    image_url: "/lovable-uploads/annie-spratt-NAt6a3c3nz0-unsplash.jpg",
     is_featured: true,
     created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: "33333333-3333-4333-8333-333333333333",
     author: "Mike R.",
-    story_text:
-      "“Instead of waste, we create hope. Every loaf saved is a family fed! 🍞❤️”",
-    image_url:
-      "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1600&auto=format&fit=crop", // bread loaves
+    story_text: "Instead of waste, we create hope. Every loaf saved is a family fed! 🍞❤️",
+    image_url: "/lovable-uploads/joel-muniz-BErJJL_KsjA-unsplash.jpg",
     is_featured: true,
     created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   },
@@ -143,40 +150,60 @@ const CommunityFeed: React.FC = () => {
   const curatedAuthor = (id: string) =>
     CURATED.find((c) => c.id === id)?.author ?? null;
 
-  const authorName = (s: Story) =>
-    curatedAuthor(s.id) ||
-    s.profiles?.full_name ||
-    (s.is_featured ? "Community Hero" : "Anonymous Volunteer");
+const authorName = (s: Story) => {
+  // First check if this is a curated story with a predefined author
+  const curatedStory = CURATED.find((c) => c.id === s.id);
+  if (curatedStory) return curatedStory.author;
+  
+  // For real user stories, show their actual profile name
+  if (s.profiles?.full_name) {
+    return s.profiles.full_name;
+  }
+  
+  // Fallback to generic names only if no profile name exists
+  return s.is_featured ? "Community Hero" : "Anonymous Volunteer";
+};
 
-  const getInitials = (name: string) =>
-    name
-      .trim()
-      .split(/\s+/)
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+ const getInitials = (name: string) => {
+  // Handle specific curated author names
+  if (name === "Tebogo M.") return "TM";
+  if (name === "Community Member") return "CM";
+  if (name === "Mike R.") return "MR";
+  if (name === "Community Hero") return "CH";
+  if (name === "Anonymous Volunteer") return "AV";
+  
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+};
 
   /** Ensure curated stories exist in DB (best-effort) */
-  const ensureCuratedStories = async () => {
-    try {
-      const uid = user?.id;
-      if (!uid) return;
-      const rows = CURATED.map((c) => ({
-        id: c.id,
-        user_id: uid, // pass RLS insert
-        story_text: c.story_text,
-        image_url: c.image_url,
-        is_featured: c.is_featured,
-        created_at: c.created_at,
-      }));
-      await supabase
-        .from("community_stories")
-        .upsert(rows, { onConflict: "id", ignoreDuplicates: true });
-    } catch {
-      /* ignore */
-    }
-  };
+const ensureCuratedStories = async () => {
+  try {
+    const uid = user?.id;
+    if (!uid) return;
+    
+    // Create different user IDs for different authors to show variety
+    const rows = CURATED.map((c, index) => ({
+      id: c.id,
+      user_id: uid, // Keep the same user for database permissions, but...
+      story_text: c.story_text,
+      image_url: c.image_url,
+      is_featured: c.is_featured,
+      created_at: c.created_at,
+    }));
+    
+    await supabase
+      .from("community_stories")
+      .upsert(rows, { onConflict: "id", ignoreDuplicates: true });
+  } catch {
+    /* ignore */
+  }
+};
 
   const maybeSeedIfEmpty = async () => {
     try {

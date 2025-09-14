@@ -91,19 +91,55 @@ export default function BagRequestForm() {
     try {
       const finalDiet = diet === "Other" ? otherDiet : diet;
       
-    // In the submit function, change the insertPayload to:
-const insertPayload = {
-  user_id: user.id,
-  hub_id: hub.id,
-  dietary_preferences: finalDiet,
-  allergies: allergies || null,
-  notes: notes || null,  // Add this line
-  preferred_window: pickupWindow,
-  status: "pending" as const,
-};
+      const insertPayload = {
+        user_id: user.id,
+        hub_id: hub.id,
+        dietary_preferences: finalDiet,
+        allergies: allergies || null,
+        notes: notes || null,
+        preferred_window: pickupWindow,
+        status: "pending" as const,
+      };
 
-      const { error } = await supabase.from("bag_requests").insert(insertPayload);
+      const { data: bagRequest, error } = await supabase
+        .from("bag_requests")
+        .insert(insertPayload)
+        .select()
+        .single();
+
       if (error) throw error;
+
+      // Create notifications for hub administrators
+      try {
+        const { data: hubAdmins } = await supabase
+          .from("profiles")
+          .select("id")
+          .or("role.eq.admin,is_admin.eq.true");
+
+        if (hubAdmins?.length) {
+          const notifications = hubAdmins.map(admin => ({
+            user_id: admin.id,
+            type: "bag_request_created",
+            title: "New Bag Request",
+            message: `New bag request from ${user.email} at ${hub.name}`,
+            audience: "admin",
+            payload: {
+              request_id: bagRequest.id,
+              hub: {
+                name: hub.name,
+                city: hub.city,
+                suburb: hub.suburb
+              },
+              pickup_time: pickupWindow
+            }
+          }));
+          
+          await supabase.from("notifications").insert(notifications);
+        }
+      } catch (notifError) {
+        console.error("Notification creation failed:", notifError);
+        // Don't fail the main request if notifications fail
+      }
 
       // Optional email notification
       try {
@@ -197,31 +233,36 @@ const insertPayload = {
             </div>
           )}
 
-          {/* Updated Diet Selection - Single Choice */}
+          {/* Diet Selection - Single Choice */}
           <div>
             <Label className="text-sm">Diet & religion (select one)</Label>
             <div className="space-y-2 mt-2">
-              {DIET_OPTIONS.map((d) => (
-                <label 
-                  key={d} 
-                  className="border rounded-xl px-3 py-2 flex items-center gap-3 hover:bg-emerald-50 transition cursor-pointer"
-                >
-                  <input
-                    type="radio"
-                    name="diet"
-                    value={d}
-                    checked={diet === d}
-                    onChange={(e) => setDiet(e.target.value)}
-                    className="text-emerald-600"
-                  />
-                  <span>{d}</span>
-                </label>
+              {DIET_OPTIONS.map((d, index) => (
+                <div key={d}>
+                  <label 
+                    htmlFor={`diet-${index}`}
+                    className="border rounded-xl px-3 py-2 flex items-center gap-3 hover:bg-emerald-50 transition cursor-pointer"
+                  >
+                    <input
+                      id={`diet-${index}`}
+                      name="diet"
+                      type="radio"
+                      value={d}
+                      checked={diet === d}
+                      onChange={(e) => setDiet(e.target.value)}
+                      className="text-emerald-600"
+                    />
+                    <span>{d}</span>
+                  </label>
+                </div>
               ))}
             </div>
             
             {diet === "Other" && (
               <div className="mt-3">
+                <Label htmlFor="other-diet">Specify dietary requirements</Label>
                 <Input
+                  id="other-diet"
                   placeholder="Please specify your dietary requirements"
                   value={otherDiet}
                   onChange={(e) => setOtherDiet(e.target.value)}
@@ -231,19 +272,23 @@ const insertPayload = {
             )}
           </div>
 
-          {/* Allergies + Notes */}
+          {/* Allergies and notes section */}
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <Label>Allergies (optional)</Label>
+              <Label htmlFor="allergies">Allergies (optional)</Label>
               <Input
+                id="allergies"
+                name="allergies"
                 placeholder="e.g., nuts, shellfish, gluten"
                 value={allergies}
                 onChange={(e) => setAllergies(e.target.value)}
               />
             </div>
             <div>
-              <Label>Notes (optional)</Label>
+              <Label htmlFor="notes">Notes (optional)</Label>
               <Textarea
+                id="notes"
+                name="notes"
                 rows={3}
                 placeholder="Anything else you'd like us to know"
                 value={notes}
@@ -252,10 +297,12 @@ const insertPayload = {
             </div>
           </div>
 
-          {/* Updated Pickup Window - Dropdown */}
+          {/* Pickup window */}
           <div>
-            <Label>Pickup window</Label>
+            <Label htmlFor="pickup-window">Pickup window</Label>
             <select 
+              id="pickup-window"
+              name="pickup-window"
               className="w-full mt-2 px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               value={pickupWindow}
               onChange={(e) => setPickupWindow(e.target.value)}
@@ -267,17 +314,21 @@ const insertPayload = {
             </select>
           </div>
 
-          {/* Terms */}
-          <label className="flex items-center gap-3 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="rounded text-emerald-600"
-            />
-            I agree to hub rules (queueing, ID check if requested, be respectful).
-          </label>
-
+          {/* Agreement checkbox */}
+          <div>
+            <label htmlFor="agreement" className="flex items-center gap-3 text-sm cursor-pointer">
+              <input
+                id="agreement"
+                name="agreement"
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                className="rounded text-emerald-600"
+              />
+              <span>I agree to hub rules (queueing, ID check if requested, be respectful).</span>
+            </label>
+          </div>
+        
           <div className="pt-2">
             <Button
               className="rounded-xl bg-emerald-600 hover:bg-emerald-700"

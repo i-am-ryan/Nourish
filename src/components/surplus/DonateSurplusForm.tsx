@@ -39,6 +39,7 @@ type Hub = {
   city: string;
   suburb: string | null;
   address: string;
+  address_line1?: string | null; // Make this optional with ?
   is_active: boolean;
 };
 
@@ -285,7 +286,7 @@ const donationData = {
   quantity: form.quantity.trim(),
   expiry_date: form.expiry_date,
   dropoff_time: form.dropoff_time,
-  pickup_location: `HUB:${form.hub_id}`, // Store hub reference as text
+  pickup_location: selectedHubData?.address_line1 || selectedHubData?.address || `${selectedHubData?.name} Hub`,
   city: selectedHubData?.city || "",
   suburb: selectedHubData?.suburb || null,
   contact_email: user.email,
@@ -293,7 +294,7 @@ const donationData = {
   images: [] as string[],
   status: "available" as const,
   is_urgent: false,
-  // Remove hub_id from here since the database might not have this column
+  hub_id: form.hub_id, // Include this directly since the column exists
 };
 
       const { data: created, error: createErr } = await apiService.createDonation(donationData);
@@ -328,7 +329,7 @@ try {
     p_type: "donation_created",
     p_title: "Donation scheduled",
     p_message: `Drop-off at ${hub?.name ?? "your selected hub"} at ${form.dropoff_time}.`,
-  p_payload: {
+p_payload: {
   title: form.title,
   dropoff_time: form.dropoff_time,
   hub: hub
@@ -336,7 +337,8 @@ try {
         name: hub.name, 
         city: hub.city, 
         suburb: hub.suburb, 
-        address: hub.address  // Add this line
+        address: hub.address || hub.address_line1 || `${hub.city} Hub`,
+        full_location: `${hub.name}, ${hub.city}${hub.suburb ? ` • ${hub.suburb}` : ''}`
       }
     : null,
   maps_url: hub ? mapsUrl(hub) : null,

@@ -94,52 +94,76 @@ export class APIService {
     }
   }
 
-  async getHubsByCity(
-    city: string
-  ): Promise<{ data: Array<{ id: string; name: string; suburb: string | null; address: string }> | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from('food_hubs')
-        .select('id,name,suburb,address')
-        .eq('city', city)
-        .eq('is_active', true)
-        .order('name', { ascending: true })
-
-      if (error) throw error
-      return { data: (data || []) as any, error: null }
-    } catch (error) {
-      console.error('Error fetching hubs by city:', error)
-      return { data: null, error }
-    }
-  }
-
- async createDonation(donationData: Partial<Donation>): Promise<{ data: Donation | null; error: any }> {
+async getHubsByCity(
+  city: string
+): Promise<{ data: Array<{ id: string; name: string; suburb: string | null; address: string; address_line1: string | null }> | null; error: any }> {
   try {
-    const user = await this.requireUser()
+    const { data, error } = await supabase
+      .from('food_hubs')
+      .select('id,name,suburb,address,address_line1')
+      .eq('city', city)
+      .eq('is_active', true)
+      .order('name', { ascending: true })
 
-    // Remove donor_id from donationData since we're setting it here
-    const { donor_id, ...cleanData } = donationData;
+    if (error) throw error
+    return { data: (data || []) as any, error: null }
+  } catch (error) {
+    console.error('Error fetching hubs by city:', error)
+    return { data: null, error }
+  }
+}
+
+async createDonation(donationData: Partial<Donation>): Promise<{ data: Donation | null; error: any }> {
+  try {
+    // Get the current user directly from supabase auth
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      throw new Error('You must be signed in to create a donation');
+    }
 
     const payload = {
-      ...cleanData,
-      donor_id: user.id
+      donor_id: user.id, // Use user.id directly
+      user_id: user.id,  // Required by RLS policy
+      title: donationData.title,
+      description: donationData.description,
+      food_type: donationData.food_type,
+      quantity: donationData.quantity,
+      expiry_date: donationData.expiry_date,
+      pickup_location: donationData.pickup_location,
+      city: donationData.city,
+      suburb: donationData.suburb,
+      contact_email: donationData.contact_email,
+      contact_phone: donationData.contact_phone,
+      images: donationData.images || [],
+      status: donationData.status || 'available',
+      is_urgent: donationData.is_urgent || false,
+      hub_id: donationData.hub_id,
     }
 
-    console.log('Inserting donation payload:', payload); // Debug log
-
-    const { data, error } = await supabase.from('donations').insert([payload]).select().single()
-    if (error) throw error
-
-      if (data) {
-        await this.triggerAIMatching(data.id).catch(() => {})
-      }
-
-      return { data, error: null }
-    } catch (error) {
-      console.error('Error creating donation:', error)
-      return { data: null, error }
+    // Only add optional fields if they exist
+    if (donationData.dropoff_time) {
+      (payload as any).dropoff_time = donationData.dropoff_time;
     }
+    
+    console.log('Inserting donation payload:', payload)
+    console.log('User ID:', user.id) // Add this to debug
+
+    const { data, error } = await supabase.from('donations').insert(payload).select().single()
+    if (error) {
+      console.error('Supabase error details:', error)
+      throw error
+    }
+
+    if (data) {
+      await this.triggerAIMatching(data.id).catch(() => {})
+    }
+
+    return { data, error: null }
+  } catch (error) {
+    console.error('Error creating donation:', error)
+    return { data: null, error }
   }
+}
 
   async getDonations(filters?: {
     city?: string

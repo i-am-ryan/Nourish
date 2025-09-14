@@ -86,6 +86,7 @@ export async function getProfile() {
   return { data, error };
 }
 
+
 export async function upsertPreferredRole(role: Role) {
   const uid = await getUserId();
   if (!uid) return { error: new Error("No user") };
@@ -285,6 +286,83 @@ export async function completeTask(taskId: string) {
   if (error) return { error };
   return { data, error: null };
 }
+
+export async function acceptTask(taskId: string) {
+  const uid = await getUserId();
+  console.log('User ID:', uid);
+  console.log('Task ID:', taskId);
+  
+  if (!uid) return { error: new Error("Not authenticated") };
+
+  try {
+    // Simple direct update without the initial check
+    console.log('Attempting to update task...');
+    
+    const { data, error } = await supabase
+      .from('volunteer_tasks')
+      .update({ 
+        status: 'assigned', 
+        assigned_to: uid,
+        accepted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', taskId)
+      .select();
+
+    console.log('Update result:', { data, error });
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return { error };
+    }
+
+    if (!data || data.length === 0) {
+      return { error: new Error("No rows updated - task may have been taken") };
+    }
+
+    // Award points for accepting
+    await awardPoints(uid, 50, 'task_accepted');
+    
+    return { data: data[0], error: null };
+
+  } catch (error) {
+    console.error('Accept task error:', error);
+    return { error };
+  }
+}
+
+export async function awardPoints(userId: string, points: number, reason: string) {
+  try {
+    const { error: rpcError } = await supabase.rpc('award_volunteer_points', {
+      p_user_id: userId,
+      p_points: points,
+      p_reason: reason
+    });
+    
+    if (rpcError) {
+      console.log('RPC failed, using fallback:', rpcError);
+      // Fallback - just insert basic stats
+      await supabase
+        .from('volunteer_stats')
+        .upsert({
+          user_id: userId,
+          total_points: points,
+          current_xp: points,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+    }
+  } catch (error) {
+    console.error('Error awarding points:', error);
+  }
+}
+
+// ADD THESE FUNCTIONS HERE ↓↓↓
+
+// ADD ABOVE HERE ↑↑↑
+
+/* ------------------------------------------------------------------ */
+/* Utility functions for UI                                           */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /* Utility functions for UI                                           */

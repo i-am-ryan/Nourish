@@ -1,22 +1,16 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Package, Truck, ChevronRight } from "lucide-react";
-
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import * as V from "@/lib/volunteer";
 import type { VolunteerTask } from "@/lib/supabase";
+console.log('Available V functions:', Object.keys(V));
+console.log('acceptTask function:', V.acceptTask);
 
-/* ------------------------------------------------------------------ */
-/* Local/food-first artwork logic                                      */
-/* ------------------------------------------------------------------ */
 
-/**
- * Curated food images as a final fallback (no cars/coding pics).
- * These are CDN images; they’re only used when a task has no image_url
- * AND we can’t find anything inside /public/lovable-uploads.
- */
 const FOOD_FALLBACKS: string[] = [
   "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1600&auto=format&fit=crop",
   "https://images.unsplash.com/photo-1506806732259-39c2d0268443?q=80&w=1600&auto=format&fit=crop",
@@ -26,17 +20,11 @@ const FOOD_FALLBACKS: string[] = [
   "https://images.unsplash.com/photo-1498575207490-8e0c4e270d3f?q=80&w=1600&auto=format&fit=crop",
 ];
 
-/**
- * Loads an optional manifest that lists files in /public/lovable-uploads.
- * Example manifest (public/lovable-uploads/manifest.json):
- *   ["apples.jpg","bread.png","veg.webp"]
- */
 async function loadLocalImageManifest(): Promise<string[]> {
   try {
     const res = await fetch("/lovable-uploads/manifest.json", { cache: "no-store" });
     if (!res.ok) return [];
     const files: string[] = await res.json();
-    // Turn into absolute paths the browser can use
     return files
       .filter(Boolean)
       .map((f) => (f.startsWith("/") ? f : `/lovable-uploads/${f}`));
@@ -45,9 +33,6 @@ async function loadLocalImageManifest(): Promise<string[]> {
   }
 }
 
-/**
- * Deterministic pick: given a key, pick a stable item from a list.
- */
 function pickStable<T>(items: T[], key: string): T | undefined {
   if (!items.length) return undefined;
   let hash = 0;
@@ -58,9 +43,6 @@ function pickStable<T>(items: T[], key: string): T | undefined {
   return items[idx];
 }
 
-/**
- * SmartImage renders the first working src out of a list.
- */
 const SmartImage: React.FC<{
   candidates: string[];
   alt: string;
@@ -81,14 +63,11 @@ const SmartImage: React.FC<{
       alt={alt}
       className={className}
       onError={() => {
-        // try next candidate on error
         setSrcIndex((i) => Math.min(i + 1, candidates.length));
       }}
     />
   );
 };
-
-/* ------------------------------------------------------------------ */
 
 interface UserStats {
   totalTasks: number;
@@ -110,15 +89,13 @@ interface TaskBoardProps {
 
 export default function TaskBoard({ roleFilter, userStats, setUserStats }: TaskBoardProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [open, setOpen] = useState<VolunteerTask[]>([]);
   const [mine, setMine] = useState<VolunteerTask[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // local images discovered at runtime (from /public/lovable-uploads/manifest.json)
   const [localImages, setLocalImages] = useState<string[]>([]);
 
   useEffect(() => {
-    // Load local images (if the optional manifest exists)
     loadLocalImageManifest().then(setLocalImages);
   }, []);
 
@@ -150,10 +127,8 @@ export default function TaskBoard({ roleFilter, userStats, setUserStats }: TaskB
     load();
   }, [load]);
 
-  // After completing a task, refresh server stats so they persist after reload
   const refreshServerStats = useCallback(async () => {
     try {
-      // if parent provided a setter, refetch canonical stats using the library
       if (setUserStats && userStats) {
         const currentUserId = (await (await V["getProfile"]()).data)?.id;
         if (currentUserId) {
@@ -166,7 +141,6 @@ export default function TaskBoard({ roleFilter, userStats, setUserStats }: TaskB
     }
   }, [setUserStats, userStats]);
 
-  // Lightweight optimistic updates for snappy UX
   const bumpStatsOptimistically = (kind: "accept" | "complete") => {
     if (!setUserStats || !userStats) return;
     setUserStats((prev) => {
@@ -186,39 +160,33 @@ export default function TaskBoard({ roleFilter, userStats, setUserStats }: TaskB
     });
   };
 
-// Replace the act function with this improved version:
-const act = async (fn: () => Promise<any>, ok: string, kind?: "accept" | "complete") => {
-  try {
-    // Call the volunteer function directly with proper error handling
-    if (kind === "accept") {
-      await V.acceptTask(taskId);
-      // Trigger points update
-      await V.awardPoints(user.id, 50, 'task_accepted');
-    } else if (kind === "complete") {
-      await V.completeTask(taskId);
-      await V.awardPoints(user.id, 100, 'task_completed');
+  const act = async (fn: () => Promise<any>, ok: string, kind?: "accept" | "complete") => {
+    try {
+      const res = await fn();
+      if (res?.error) {
+        toast({
+          title: "Action failed",
+          description: res.error.message ?? "Please try again",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (kind) bumpStatsOptimistically(kind);
+      toast({ title: ok });
+      await load();
+      if (kind === "complete") {
+        await refreshServerStats();
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        title: "Action failed",
+        description: e?.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
     }
-    
-    if (kind) bumpStatsOptimistically(kind);
-    toast({ title: ok });
-    await load();
-    if (kind === "complete") {
-      await refreshServerStats();
-    }
-  } catch (e: any) {
-    console.error(e);
-    toast({
-      title: "Action failed",
-      description: e?.message || "An unexpected error occurred",
-      variant: "destructive",
-    });
-  }
-};
+  };
 
-  // Build image candidates for a task:
-  // 1) task.image_url (if your table has it)
-  // 2) deterministic pick from /lovable-uploads (if manifest exists)
-  // 3) food fallbacks
   const getTaskImageCandidates = (t: VolunteerTask): string[] => {
     const cands: string[] = [];
     // @ts-expect-error: allow optional column
@@ -227,13 +195,11 @@ const act = async (fn: () => Promise<any>, ok: string, kind?: "accept" | "comple
     const stableLocal = pickStable(localImages, t.id || t.title || "");
     if (stableLocal) cands.push(stableLocal);
 
-    // Slightly bias the fallback selection by type for variety
     const pool =
       t.task_type === "pickup" ? FOOD_FALLBACKS.slice(0, 3) : FOOD_FALLBACKS.slice(3);
     const stableCdn = pickStable(pool, t.id || t.title || "");
     if (stableCdn) cands.push(stableCdn);
 
-    // ensure at least something
     if (!cands.length) cands.push(...FOOD_FALLBACKS);
     return cands;
   };
@@ -275,39 +241,44 @@ const act = async (fn: () => Promise<any>, ok: string, kind?: "accept" | "comple
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {!mineCard && t.status === "open" && (
-              <Button
-                onClick={() =>
-                  act(() => V.acceptTask(t.id), "Task accepted", "accept")
-                }
-                size="sm"
-              >
-                Accept
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            )}
+{!mineCard && t.status === "open" && (
+  <Button
+    onClick={() => {
+      const taskId = t.id;
+      act(() => V.acceptTask(taskId), "Task accepted", "accept");
+    }}
+    size="sm"
+  >
+    Accept
+    <ChevronRight className="w-4 h-4 ml-1" />
+  </Button>
+)}
 
-            {mineCard && (t.status === "assigned" || t.status === "open") && (
-              <Button
-                variant="secondary"
-                onClick={() => act(() => V.startTask(t.id), "Task started")}
-                size="sm"
-              >
-                Start
-              </Button>
-            )}
+{mineCard && (t.status === "assigned" || t.status === "open") && (
+  <Button
+    variant="secondary"
+    onClick={() => {
+      const taskId = t.id;
+      act(() => V.startTask(taskId), "Task started");
+    }}
+    size="sm"
+  >
+    Start
+  </Button>
+)}
 
-            {mineCard && t.status !== "completed" && (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  act(() => V.completeTask(t.id), "Task completed", "complete")
-                }
-                size="sm"
-              >
-                Complete
-              </Button>
-            )}
+{mineCard && t.status !== "completed" && (
+  <Button
+    variant="outline"
+    onClick={() => {
+      const taskId = t.id;
+      act(() => V.completeTask(taskId), "Task completed", "complete");
+    }}
+    size="sm"
+  >
+    Complete
+  </Button>
+)}
           </div>
         </div>
 
