@@ -260,19 +260,6 @@ export async function listMyCompletedTasks(limit = 12) {
 }
 
 /* === NEW: use RPCs so RLS never blocks === */
-export async function acceptTask(taskId: string) {
-  const uid = await getUserId();
-  if (!uid) return { error: new Error("Not authenticated") };
-
-  const { data, error } = await supabase.rpc('accept_volunteer_task', {
-    task_id: taskId,
-    user_id: uid
-  });
-
-  if (error) return { error };
-  return { data, error: null };
-}
-
 export async function startTask(taskId: string) {
   const uid = await getUserId();
   if (!uid) return { error: new Error("Not authenticated") };
@@ -476,22 +463,37 @@ export async function getMyBadges(): Promise<{ data: EarnedBadge[]; error: any }
 
 export async function getLeaderboard(limit = 10): Promise<{ data: LeaderboardEntry[]; error: any }> {
   try {
-    // Join profiles to get full_name; do NOT expect a full_name column on volunteer_stats
+    // Use a simpler query that works with your current schema
     const { data, error } = await supabase
       .from("volunteer_stats")
-      .select("user_id, tasks_completed, total_hours, total_points, profiles(full_name)")
+      .select(`
+        user_id,
+        tasks_completed,
+        total_hours,
+        total_points
+      `)
       .order("total_points", { ascending: false })
       .limit(limit);
 
     if (error) return { data: [], error };
 
-    const leaderboard: LeaderboardEntry[] = (data || []).map((row: any) => ({
-      user_id: row.user_id,
-      full_name: row.profiles?.full_name ?? null,
-      tasks_completed: row.tasks_completed || 0,
-      hours: Math.round(row.total_hours || 0),
-      points: row.total_points || 0,
-    }));
+    // Get profile names separately
+    const userIds = (data || []).map(row => row.user_id);
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+
+    const leaderboard: LeaderboardEntry[] = (data || []).map((row: any) => {
+      const profile = profiles?.find(p => p.id === row.user_id);
+      return {
+        user_id: row.user_id,
+        full_name: profile?.full_name || 'Anonymous User',
+        tasks_completed: row.tasks_completed || 0,
+        hours: Math.round(row.total_hours || 0),
+        points: row.total_points || 0,
+      };
+    });
 
     return { data: leaderboard, error: null };
   } catch (e) {
