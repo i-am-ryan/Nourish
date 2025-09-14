@@ -466,66 +466,122 @@ function NotificationDetails({
         </span>
       </Row>
     )}
-    {payload?.hub && (
-      <Row label="Food Hub Location">
-        <div className="space-y-2">
-          <div className="font-medium text-emerald-700">{payload.hub.name || 'Food Hub'}</div>
-          <div className="text-sm text-gray-600 flex items-center gap-1">
-            <MapPin className="w-4 h-4 text-emerald-600" />
-            {[payload.hub.suburb, payload.hub.city].filter(Boolean).join(" • ") || 'Location details pending'}
-          </div>
-          {payload.hub.address && (
-            <div className="text-sm text-gray-600 bg-gray-50 dark:bg-gray-800 p-2 rounded-lg">
-              <strong>Full Address:</strong> {payload.hub.address}
+    
+    {/* Enhanced hub location section */}
+    {payload?.hub ? (
+      <Row label="Drop-off Location">
+        <div className="space-y-3">
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-lg border border-emerald-200">
+            <div className="font-semibold text-emerald-800 dark:text-emerald-200">
+              {payload.hub.name || 'Food Hub Location'}
             </div>
-          )}
-          <div className="text-xs text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-            📍 Remember to bring this donation to the location above during your scheduled time.
+            <div className="text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-1 mt-1">
+              <MapPin className="w-4 h-4" />
+              {[payload.hub.suburb, payload.hub.city].filter(Boolean).join(" • ") || 'Location details available'}
+            </div>
+            {payload.hub.address && (
+              <div className="text-sm text-emerald-600 dark:text-emerald-400 mt-2 font-medium">
+                📍 {payload.hub.address}
+              </div>
+            )}
+          </div>
+          <div className="text-xs text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 p-2 rounded border border-blue-200">
+            💡 Bring this donation to the location above during your scheduled drop-off time
+          </div>
+        </div>
+      </Row>
+    ) : (
+      <Row label="Drop-off Location">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200">
+          <div className="text-yellow-800 dark:text-yellow-200 text-sm">
+            Location details will be provided via email or phone
           </div>
         </div>
       </Row>
     )}
-    {payload?.hub && computedMapsUrl !== "#" && (
-      <div className="mt-4">
-        <Button asChild className="rounded-xl w-full">
+
+    <div className="mt-4">
+      {payload?.hub && computedMapsUrl !== "#" ? (
+        <Button asChild className="rounded-xl w-full bg-emerald-600 hover:bg-emerald-700">
           <a href={computedMapsUrl} target="_blank" rel="noreferrer">
             <ExternalLink className="w-4 h-4 mr-2" />
             Get Directions to Drop-off Location
           </a>
         </Button>
-      </div>
-    )}
+      ) : (
+        <Button 
+          className="rounded-xl w-full bg-blue-600 hover:bg-blue-700" 
+          onClick={() => window.location.href = '/donate'}
+        >
+          View My Donations
+        </Button>
+      )}
+    </div>
   </>
 ) : null}
 
-            {(notification.type as NotifType) === "volunteer_task_assigned" ||
-            (notification.type as NotifType) === "task_assignment" ? (
-              <>
-                {payload?.role && (
-                  <Row label="Role">
-                    <span className="font-medium capitalize">{payload.role}</span>
-                  </Row>
-                )}
-                {payload?.when && (
-                  <Row label="When">
-                    <span>{payload.when}</span>
-                  </Row>
-                )}
-                {payload?.hub && (
-                  <Row label="Hub">
-                    <div>
-                      <div className="font-medium">{payload.hub.name}</div>
-                      <div className="text-sm text-gray-600">
-                        {[payload.hub.city, payload.hub.suburb].filter(Boolean).join(" • ")}
-                      </div>
-                      {payload.hub.address && (
-                        <div className="text-sm text-gray-600">{payload.hub.address}</div>
-                      )}
-                    </div>
-                  </Row>
-                )}
-              </>
-            ) : null}
+{(notification.type as NotifType) === "volunteer_task_assigned" ||
+(notification.type as NotifType) === "task_assignment" ? (
+  <>
+    {payload?.role && (
+      <Row label="Role">
+        <span className="font-medium capitalize text-blue-600">{payload.role}</span>
+      </Row>
+    )}
+    {payload?.when && (
+      <Row label="When">
+        <span className="inline-flex items-center gap-1">
+          <CalendarClock className="w-4 h-4 text-emerald-600" />
+          {payload.when}
+        </span>
+      </Row>
+    )}
+    {payload?.hub && (
+      <Row label="Location">
+        <div className="space-y-2">
+          <div className="font-medium text-gray-900 dark:text-gray-100">{payload.hub.name}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+            <MapPin className="w-4 h-4 text-blue-600" />
+            {[payload.hub.city, payload.hub.suburb].filter(Boolean).join(" • ")}
+          </div>
+          {payload.hub.address && (
+            <div className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 p-2 rounded">
+              📍 {payload.hub.address}
+            </div>
+          )}
+        </div>
+      </Row>
+    )}
+    
+    {/* Task details if available */}
+    {payload?.task_id && (
+      <Row label="Task Details">
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200">
+          <div className="text-sm text-blue-800 dark:text-blue-200">
+            Click below to view full task details and accept the assignment
+          </div>
+        </div>
+      </Row>
+    )}
+
+    <div className="mt-4 space-y-2">
+      <Button asChild className="rounded-xl w-full bg-blue-600 hover:bg-blue-700">
+        <a href="/volunteer" target="_blank" rel="noopener noreferrer">
+          <ExternalLink className="w-4 h-4 mr-2" />
+          View Task in Volunteer Dashboard
+        </a>
+      </Button>
+      {payload?.hub && (
+        <Button asChild variant="outline" className="rounded-xl w-full">
+          <a href={computedMapsUrl} target="_blank" rel="noreferrer">
+            <MapPin className="w-4 h-4 mr-2" />
+            Get Directions to Location
+          </a>
+        </Button>
+      )}
+    </div>
+  </>
+) : null}
 
             {(notification.type as NotifType) === "bag_request_created" ? (
               <>

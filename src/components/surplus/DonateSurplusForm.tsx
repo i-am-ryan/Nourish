@@ -303,25 +303,31 @@ export default function DonateSurplusForm() {
       setRecipients(chosen);
 
       // Push a notification for the signed-in user
-      try {
-        await supabase.rpc("push_notification", {
-          p_user_id: user.id,
-          p_type: "donation_created",
-          p_title: "Donation scheduled",
-          p_message: `Drop-off at ${hub?.name ?? "your selected hub"} at ${form.dropoff_time}.`,
-          p_payload: {
-            title: form.title,
-            dropoff_time: form.dropoff_time,
-            hub: hub
-              ? { name: hub.name, city: hub.city, suburb: hub.suburb, address: hub.address }
-              : null,
-            maps_url: hub ? mapsUrl(hub) : null,
-            recipients: chosen,
-          },
-        });
-      } catch {
-        // non-fatal
+    // Push a notification for the signed-in user
+try {
+  await supabase.rpc("push_notification", {
+    p_user_id: user.id,
+    p_type: "donation_created",
+    p_title: "Donation scheduled",
+    p_message: `Drop-off at ${hub?.name ?? "your selected hub"} at ${form.dropoff_time}.`,
+  p_payload: {
+  title: form.title,
+  dropoff_time: form.dropoff_time,
+  hub: hub
+    ? { 
+        name: hub.name, 
+        city: hub.city, 
+        suburb: hub.suburb, 
+        address: hub.address  // Add this line
       }
+    : null,
+  maps_url: hub ? mapsUrl(hub) : null,
+  recipients: chosen,
+},
+  });
+} catch {
+  // non-fatal
+}
 
       setReceiptOpen(true);
 
