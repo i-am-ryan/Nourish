@@ -186,33 +186,34 @@ export default function TaskBoard({ roleFilter, userStats, setUserStats }: TaskB
     });
   };
 
-  const act = async (fn: () => Promise<any>, ok: string, kind?: "accept" | "complete") => {
-    try {
-      const res = await fn();
-      if (res?.error) {
-        toast({
-          title: "Action failed",
-          description: res.error.message ?? "Please try again",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (kind) bumpStatsOptimistically(kind);
-      toast({ title: ok });
-      await load();
-      if (kind === "complete") {
-        // make sure server-side stats/trophies are reflected after RPC triggers
-        await refreshServerStats();
-      }
-    } catch (e) {
-      console.error(e);
-      toast({
-        title: "Action failed",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
+// Replace the act function with this improved version:
+const act = async (fn: () => Promise<any>, ok: string, kind?: "accept" | "complete") => {
+  try {
+    // Call the volunteer function directly with proper error handling
+    if (kind === "accept") {
+      await V.acceptTask(taskId);
+      // Trigger points update
+      await V.awardPoints(user.id, 50, 'task_accepted');
+    } else if (kind === "complete") {
+      await V.completeTask(taskId);
+      await V.awardPoints(user.id, 100, 'task_completed');
     }
-  };
+    
+    if (kind) bumpStatsOptimistically(kind);
+    toast({ title: ok });
+    await load();
+    if (kind === "complete") {
+      await refreshServerStats();
+    }
+  } catch (e: any) {
+    console.error(e);
+    toast({
+      title: "Action failed",
+      description: e?.message || "An unexpected error occurred",
+      variant: "destructive",
+    });
+  }
+};
 
   // Build image candidates for a task:
   // 1) task.image_url (if your table has it)

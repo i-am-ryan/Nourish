@@ -91,15 +91,16 @@ export default function BagRequestForm() {
     try {
       const finalDiet = diet === "Other" ? otherDiet : diet;
       
-      const insertPayload = {
-        user_id: user.id,
-        hub_id: hub.id,
-        dietary_preferences: finalDiet,
-        allergies: allergies || null,
-        notes: notes || null,
-        preferred_window: pickupWindow,
-        status: "pending" as const,
-      };
+    // In the submit function, change the insertPayload to:
+const insertPayload = {
+  user_id: user.id,
+  hub_id: hub.id,
+  dietary_preferences: finalDiet,
+  allergies: allergies || null,
+  notes: notes || null,  // Add this line
+  preferred_window: pickupWindow,
+  status: "pending" as const,
+};
 
       const { error } = await supabase.from("bag_requests").insert(insertPayload);
       if (error) throw error;
