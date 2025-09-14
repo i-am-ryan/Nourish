@@ -469,10 +469,10 @@ function NotificationDetails({
     {payload?.hub && (
       <Row label="Food Hub Location">
         <div className="space-y-2">
-          <div className="font-medium text-emerald-700">{payload.hub.name}</div>
+          <div className="font-medium text-emerald-700">{payload.hub.name || 'Food Hub'}</div>
           <div className="text-sm text-gray-600 flex items-center gap-1">
             <MapPin className="w-4 h-4 text-emerald-600" />
-            {[payload.hub.suburb, payload.hub.city].filter(Boolean).join(" • ")}
+            {[payload.hub.suburb, payload.hub.city].filter(Boolean).join(" • ") || 'Location details pending'}
           </div>
           {payload.hub.address && (
             <div className="text-sm text-gray-600 bg-gray-50 dark:bg-gray-800 p-2 rounded-lg">
@@ -485,14 +485,16 @@ function NotificationDetails({
         </div>
       </Row>
     )}
-    <div className="mt-4">
-      <Button asChild className="rounded-xl w-full">
-        <a href={computedMapsUrl} target="_blank" rel="noreferrer">
-          <ExternalLink className="w-4 h-4 mr-2" />
-          Get Directions to Drop-off Location
-        </a>
-      </Button>
-    </div>
+    {payload?.hub && computedMapsUrl !== "#" && (
+      <div className="mt-4">
+        <Button asChild className="rounded-xl w-full">
+          <a href={computedMapsUrl} target="_blank" rel="noreferrer">
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Get Directions to Drop-off Location
+          </a>
+        </Button>
+      </div>
+    )}
   </>
 ) : null}
 
