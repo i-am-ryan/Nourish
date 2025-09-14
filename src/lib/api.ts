@@ -113,17 +113,22 @@ export class APIService {
     }
   }
 
-  async createDonation(donationData: Partial<Donation>): Promise<{ data: Donation | null; error: any }> {
-    try {
-      const user = await this.requireUser()
+ async createDonation(donationData: Partial<Donation>): Promise<{ data: Donation | null; error: any }> {
+  try {
+    const user = await this.requireUser()
 
-      const payload: Partial<Donation> = {
-        ...donationData,
-        donor_id: user.id
-      }
+    // Remove donor_id from donationData since we're setting it here
+    const { donor_id, ...cleanData } = donationData;
 
-      const { data, error } = await supabase.from('donations').insert([payload]).select().single()
-      if (error) throw error
+    const payload = {
+      ...cleanData,
+      donor_id: user.id
+    }
+
+    console.log('Inserting donation payload:', payload); // Debug log
+
+    const { data, error } = await supabase.from('donations').insert([payload]).select().single()
+    if (error) throw error
 
       if (data) {
         await this.triggerAIMatching(data.id).catch(() => {})

@@ -129,39 +129,38 @@ export default function DonateSurplusForm() {
   });
 
   // Load hubs once
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setHubsLoading(true);
-      setLoadErr(null);
-      try {
-        const { data, error } = await apiService.getFoodHubs({ is_active: true });
-        if (error) throw error;
-        if (!cancelled) {
-          const list = (data || []) as Hub[];
-          setHubs(list);
-          if (!form.hub_id && list[0]) setForm((f) => ({ ...f, hub_id: list[0].id }));
+useEffect(() => {
+  let cancelled = false;
+  const load = async () => {
+    setHubsLoading(true);
+    setLoadErr(null);
+    try {
+      const { data, error } = await apiService.getFoodHubs({ is_active: true });
+      if (error) throw error;
+      if (!cancelled) {
+        const list = (data || []) as Hub[];
+        setHubs(list);
+        // Only set default hub_id if form.hub_id is null
+        if (!form.hub_id && list[0]) {
+          setForm((f) => ({ ...f, hub_id: list[0].id }));
         }
-      } catch (err: any) {
-        console.error("getFoodHubs failed", err);
-        if (!cancelled) {
-          setLoadErr(err?.message || "Failed to load food hubs");
-          toast({
-            title: "Couldn’t load hubs",
-            description: err?.message || "Please try again.",
-            variant: "destructive",
-          });
-        }
-      } finally {
-        if (!cancelled) setHubsLoading(false);
       }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    } catch (err: any) {
+      console.error("getFoodHubs failed", err);
+      if (!cancelled) {
+        setLoadErr(err?.message || "Failed to load food hubs");
+        // Don't call toast here - it causes re-renders
+        console.error("Failed to load hubs:", err?.message);
+      }
+    } finally {
+      if (!cancelled) setHubsLoading(false);
+    }
+  };
+  load();
+  return () => {
+    cancelled = true;
+  };
+}, []); // empty deps - run once
 
   const cities = useMemo(
     () => Array.from(new Set(hubs.map((h) => h.city))).sort(),
@@ -265,26 +264,45 @@ export default function DonateSurplusForm() {
     setSubmitting(true);
     try {
       // 1) Create a placeholder donation to get the id (so we can store at /{user}/{donationId}/file)
-      const placeholder = {
-        title: form.title.trim(),
-        description: form.description.trim(),
-        food_type: form.food_type,
-        quantity: form.quantity.trim(),
-        expiry_date: form.expiry_date,
-        dropoff_time: form.dropoff_time,
-        pickup_location: form.hub_id ? `HUB:${form.hub_id}` : null,
-        city: "",
-        suburb: null as string | null,
-        contact_email: user.email,
-        contact_phone: profile?.phone || null,
-        images: [] as string[],
-        status: "available" as const,
-        is_urgent: false,
-      };
+if (!form.hub_id) {
+  toast({
+    title: "Hub required",
+    description: "Please select a food hub for pickup.",
+    variant: "destructive",
+  });
+  setSubmitting(false); // ADD THIS LINE
+  return;
+}
 
-      const { data: created, error: createErr } = await apiService.createDonation(placeholder as any);
-      if (createErr || !created) throw createErr || new Error("Unable to create donation");
+// Get the selected hub for proper city/suburb values
+const selectedHubData = hubs.find(h => h.id === form.hub_id);
 
+// 1) Create the donation record with proper structure
+const donationData = {
+  title: form.title.trim(),
+  description: form.description.trim(),
+  food_type: form.food_type,
+  quantity: form.quantity.trim(),
+  expiry_date: form.expiry_date,
+  dropoff_time: form.dropoff_time,
+  pickup_location: `HUB:${form.hub_id}`, // Store hub reference as text
+  city: selectedHubData?.city || "",
+  suburb: selectedHubData?.suburb || null,
+  contact_email: user.email,
+  contact_phone: profile?.phone || null,
+  images: [] as string[],
+  status: "available" as const,
+  is_urgent: false,
+  // Remove hub_id from here since the database might not have this column
+};
+
+      const { data: created, error: createErr } = await apiService.createDonation(donationData);
+      if (createErr || !created) {
+  console.error("Create donation error:", createErr);
+  throw createErr || new Error("Unable to create donation");
+}
+
+console.log("Donation created successfully:", created);
       // 2) Upload images using donation id
       const urls = await uploadImagesAndGetUrls(created.id);
 
