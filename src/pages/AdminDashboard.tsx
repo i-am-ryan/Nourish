@@ -622,77 +622,164 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [taskType, setTaskType] = useState<"pickup"|"delivery"|"other">("pickup");
   const [city, setCity] = useState("");
   const [suburb, setSuburb] = useState("");
+  const [address, setAddress] = useState("");
   const [due, setDue] = useState("");
-  const [tasks, setTasks] = useState<VolunteerTask[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [priority, setPriority] = useState<"low"|"medium"|"high"|"urgent">("medium");
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("volunteer_tasks").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("volunteer_tasks")
+      .select("*")
+      .order("created_at", { ascending: false });
     setLoading(false);
     if (error) return toast({ title: "Load failed", description: error.message, variant: "destructive" });
     setTasks((data||[]).map((r:any)=>({
-      id:String(r.id), title:r.title, status:r.status, due_date:r.scheduled_date, created_at:r.created_at
+      id: String(r.id), 
+      title: r.title, 
+      description: r.description,
+      status: r.status, 
+      task_type: r.task_type,
+      city: r.city,
+      suburb: r.suburb,
+      address_line1: r.address_line1,
+      priority: r.priority,
+      due_date: r.scheduled_date, 
+      created_at: r.created_at
     })));
   };
+
   useEffect(()=>{ void load(); },[]);
 
   const createTask = async () => {
     if (!title.trim()) return toast({ title:"Enter a title", variant:"destructive" });
-    if (!city.trim())  return toast({ title:"City is required", variant:"destructive" });
+    if (!description.trim()) return toast({ title:"Enter a description", variant:"destructive" });
+    if (!city.trim()) return toast({ title:"City is required", variant:"destructive" });
+    
     setCreating(true);
     try {
       const payload:any = {
-        title, task_type: taskType, status: "open", city, suburb: suburb || null,
+        title: title.trim(),
+        description: description.trim(),
+        task_type: taskType,
+        status: "open",
+        city: city.trim(),
+        suburb: suburb.trim() || null,
+        address_line1: address.trim() || null,
+        priority,
         scheduled_date: due ? new Date(due).toISOString() : null,
       };
+      
       const { error } = await supabase.from("volunteer_tasks").insert(payload);
       if (error) throw error;
-      // Notifications happen in DB trigger
-      setTitle(""); setCity(""); setSuburb(""); setDue("");
-      toast({ title: "Task created" });
+      
+      // Clear form
+      setTitle(""); setDescription(""); setCity(""); setSuburb(""); setAddress(""); setDue("");
+      toast({ title: "Task created successfully" });
       await load();
     } catch (e:any) {
       toast({ title:"Failed to create task", description:e.message, variant:"destructive" });
-    } finally { setCreating(false); }
+    } finally { 
+      setCreating(false); 
+    }
   };
 
-  const changeStatus = async (task: VolunteerTask, status: string) => {
+  const changeStatus = async (task: any, status: string) => {
     const { error } = await supabase.from("volunteer_tasks").update({ status }).eq("id", task.id);
     if (error) return toast({ title:"Update failed", description:error.message, variant:"destructive" });
-    setTasks(prev=>prev.map(t=>t.id===task.id?{...t,status}:t));
+    setTasks((prev:any)=>prev.map((t:any)=>t.id===task.id?{...t,status}:t));
+    toast({ title: `Task marked as ${status}` });
   };
 
-  const removeTask = async (task: VolunteerTask) => {
+  const removeTask = async (task: any) => {
     if (!confirm("Delete this task?")) return;
     const { error } = await supabase.from("volunteer_tasks").delete().eq("id", task.id);
     if (error) return toast({ title:"Delete failed", description:error.message, variant:"destructive" });
-    setTasks(prev=>prev.filter(t=>t.id!==task.id));
+    setTasks((prev:any)=>prev.filter((t:any)=>t.id!==task.id));
     toast({ title:"Task deleted" });
   };
 
   return (
     <div className="grid gap-4">
       <Card>
-        <CardHeader><CardTitle>Create Task</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Create Volunteer Task</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-2">
-            <input className="border rounded-md px-3 py-2 flex-1" placeholder="Task title"
-                   value={title} onChange={e=>setTitle(e.target.value)} />
-            <select className="border rounded-md px-3 py-2" value={taskType} onChange={e=>setTaskType(e.target.value as any)}>
-              <option value="pickup">Pickup</option><option value="delivery">Delivery</option><option value="other">Other</option>
-            </select>
-            <input className="border rounded-md px-3 py-2 w-[180px]" placeholder="City (required)"
-                   value={city} onChange={e=>setCity(e.target.value)} />
-            <input className="border rounded-md px-3 py-2 w-[180px]" placeholder="Suburb (optional)"
-                   value={suburb} onChange={e=>setSuburb(e.target.value)} />
-            <input type="date" className="border rounded-md px-3 py-2" value={due} onChange={e=>setDue(e.target.value)} />
-            <Button onClick={createTask} disabled={creating} className="bg-emerald-600 hover:bg-emerald-700">
-              {creating ? "Creating…" : "Create"}
-            </Button>
+          <div className="grid gap-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <input 
+                className="border rounded-md px-3 py-2" 
+                placeholder="Task title (required)"
+                value={title} 
+                onChange={e=>setTitle(e.target.value)} 
+              />
+              <select 
+                className="border rounded-md px-3 py-2" 
+                value={taskType} 
+                onChange={e=>setTaskType(e.target.value as any)}
+              >
+                <option value="pickup">Food Pickup</option>
+                <option value="delivery">Food Delivery</option>
+                <option value="other">Other Task</option>
+              </select>
+            </div>
+            
+            <textarea
+              className="border rounded-md px-3 py-2 min-h-[100px]"
+              placeholder="Task description - what needs to be done, requirements, etc. (required)"
+              value={description}
+              onChange={e=>setDescription(e.target.value)}
+            />
+            
+            <div className="grid md:grid-cols-3 gap-4">
+              <input 
+                className="border rounded-md px-3 py-2" 
+                placeholder="City (required)"
+                value={city} 
+                onChange={e=>setCity(e.target.value)} 
+              />
+              <input 
+                className="border rounded-md px-3 py-2" 
+                placeholder="Suburb (optional)"
+                value={suburb} 
+                onChange={e=>setSuburb(e.target.value)} 
+              />
+              <input 
+                className="border rounded-md px-3 py-2" 
+                placeholder="Specific address (optional)"
+                value={address} 
+                onChange={e=>setAddress(e.target.value)} 
+              />
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-4">
+              <input 
+                type="date" 
+                className="border rounded-md px-3 py-2" 
+                value={due} 
+                onChange={e=>setDue(e.target.value)} 
+              />
+              <select 
+                className="border rounded-md px-3 py-2" 
+                value={priority} 
+                onChange={e=>setPriority(e.target.value as any)}
+              >
+                <option value="low">Low Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="high">High Priority</option>
+                <option value="urgent">Urgent</option>
+              </select>
+              <Button 
+                onClick={createTask} 
+                disabled={creating} 
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {creating ? "Creating…" : "Create Task"}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -705,19 +792,39 @@ export default function AdminDashboard() {
            <div className="overflow-auto">
              <table className="w-full text-sm">
                <thead><tr className="text-left border-b">
-                 <th className="py-2 pr-3">Title</th><th className="py-2 pr-3">Status</th>
-                 <th className="py-2 pr-3">Due</th><th className="py-2 pr-3">Created</th><th className="py-2 pr-3">Actions</th>
+                 <th className="py-2 pr-3">Task</th>
+                 <th className="py-2 pr-3">Type</th>
+                 <th className="py-2 pr-3">Location</th>
+                 <th className="py-2 pr-3">Status</th>
+                 <th className="py-2 pr-3">Priority</th>
+                 <th className="py-2 pr-3">Due</th>
+                 <th className="py-2 pr-3">Actions</th>
                </tr></thead>
                <tbody>
-               {tasks.map(t=>(
+               {tasks.map((t:any)=>(
                  <tr key={t.id} className="border-b">
-                   <td className="py-2 pr-3">{t.title || "—"}</td>
+                   <td className="py-2 pr-3">
+                     <div className="font-medium">{t.title || "—"}</div>
+                     <div className="text-xs text-gray-500">{t.description}</div>
+                   </td>
+                   <td className="py-2 pr-3">
+                     <Pill className="bg-blue-100 text-blue-800 capitalize">{t.task_type}</Pill>
+                   </td>
+                   <td className="py-2 pr-3">
+                     <div>{t.city}</div>
+                     <div className="text-xs text-gray-500">{t.suburb}</div>
+                   </td>
                    <td className="py-2 pr-3">{statusPill(t.status)}</td>
+                   <td className="py-2 pr-3">{statusPill(t.priority)}</td>
                    <td className="py-2 pr-3">{fmtDate(t.due_date)}</td>
-                   <td className="py-2 pr-3">{fmtDate(t.created_at)}</td>
                    <td className="py-2 pr-3">
                      <div className="flex gap-2">
-                       <Button size="sm" variant="outline" onClick={()=>changeStatus(t,"completed")}>Complete</Button>
+                       {t.status === 'open' && (
+                         <Button size="sm" variant="outline" onClick={()=>changeStatus(t,"assigned")}>Assign</Button>
+                       )}
+                       {(t.status === 'assigned' || t.status === 'in_progress') && (
+                         <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={()=>changeStatus(t,"completed")}>Complete</Button>
+                       )}
                        <Button size="sm" variant="destructive" onClick={()=>removeTask(t)}>Delete</Button>
                      </div>
                    </td>

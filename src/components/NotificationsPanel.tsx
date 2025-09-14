@@ -449,7 +449,7 @@ function NotificationDetails({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-// In the NotificationDetails component, enhance the donation section:
+
 {(notification.type as NotifType) === "donation_created" ||
 (notification.type as NotifType) === "donation_match" ? (
   <>
@@ -479,8 +479,8 @@ function NotificationDetails({
               <strong>Full Address:</strong> {payload.hub.address}
             </div>
           )}
-          <div className="text-xs text-gray-500">
-            Remember to bring this donation to the location above during your scheduled time.
+          <div className="text-xs text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+            📍 Remember to bring this donation to the location above during your scheduled time.
           </div>
         </div>
       </Row>
