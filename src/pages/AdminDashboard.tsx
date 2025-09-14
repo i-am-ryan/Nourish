@@ -642,27 +642,9 @@ function TasksTab() {
         .select("*")
         .order("created_at", { ascending: false });
       
-      if (error) {
-        console.error("Load error:", error);
-        toast({ title: "Load failed", description: error.message, variant: "destructive" });
-        return;
-      }
-      
-      setTasks((data || []).map((r: any) => ({
-        id: String(r.id),
-        title: r.title,
-        description: r.description,
-        status: r.status,
-        task_type: r.task_type,
-        city: r.city,
-        suburb: r.suburb,
-        address_line1: r.address_line1,
-        priority: r.priority,
-        due_date: r.scheduled_date,
-        created_at: r.created_at
-      })));
+      if (error) throw error;
+      setTasks(data || []);
     } catch (e: any) {
-      console.error("Load exception:", e);
       toast({ title: "Load failed", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -682,10 +664,6 @@ function TasksTab() {
       toast({ title: "Enter a description", variant: "destructive" });
       return;
     }
-    if (!city.trim()) {
-      toast({ title: "City is required", variant: "destructive" });
-      return;
-    }
 
     setCreating(true);
     try {
@@ -694,28 +672,46 @@ function TasksTab() {
         description: description.trim(),
         task_type: taskType,
         status: "open",
-        city: city.trim(),
+        priority,
+        city: city.trim() || null,
         suburb: suburb.trim() || null,
         address_line1: address.trim() || null,
-        priority,
         scheduled_date: due ? new Date(due).toISOString() : null,
       };
 
-      console.log("Creating task with payload:", payload);
-      
       const { data, error } = await supabase
         .from("volunteer_tasks")
         .insert(payload)
         .select()
         .single();
 
-      if (error) {
-        console.error("Insert error:", error);
-        throw error;
+      if (error) throw error;
+    try {
+      const { data: volunteers } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("role", "volunteer");
+
+      if (volunteers && volunteers.length > 0) {
+        for (const volunteer of volunteers) {
+          await supabase.from("notifications").insert({
+            user_id: volunteer.id,
+            type: "volunteer_task_assigned",
+            title: "New Task Available",
+            message: `New ${taskType} task: ${title.trim()}`,
+            payload: {
+              task_id: data.id,
+              role: taskType,
+              when: due || "No deadline set",
+              hub: city ? { name: "Task Location", city, suburb } : null
+            }
+          });
+        }
       }
-
-      console.log("Task created successfully:", data);
-
+    } catch (notifError) {
+      console.error("Failed to create notifications:", notifError);
+      // Don't fail the task creation if notifications fail
+    }
       // Clear form
       setTitle("");
       setDescription("");
@@ -723,17 +719,13 @@ function TasksTab() {
       setSuburb("");
       setAddress("");
       setDue("");
+      setTaskType("pickup");
       setPriority("medium");
 
       toast({ title: "Task created successfully" });
       await load();
     } catch (e: any) {
-      console.error("Create task exception:", e);
-      toast({ 
-        title: "Failed to create task", 
-        description: e.message, 
-        variant: "destructive" 
-      });
+      toast({ title: "Failed to create task", description: e.message, variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -805,19 +797,19 @@ function TasksTab() {
             <div className="grid md:grid-cols-3 gap-4">
               <input
                 className="border rounded-md px-3 py-2"
-                placeholder="City (required)"
+                placeholder="City"
                 value={city}
                 onChange={e => setCity(e.target.value)}
               />
               <input
                 className="border rounded-md px-3 py-2"
-                placeholder="Suburb (optional)"
+                placeholder="Suburb"
                 value={suburb}
                 onChange={e => setSuburb(e.target.value)}
               />
               <input
                 className="border rounded-md px-3 py-2"
-                placeholder="Specific address (optional)"
+                placeholder="Address"
                 value={address}
                 onChange={e => setAddress(e.target.value)}
               />
@@ -870,7 +862,6 @@ function TasksTab() {
                     <th className="py-2 pr-3">Type</th>
                     <th className="py-2 pr-3">Location</th>
                     <th className="py-2 pr-3">Status</th>
-                    <th className="py-2 pr-3">Priority</th>
                     <th className="py-2 pr-3">Due</th>
                     <th className="py-2 pr-3">Actions</th>
                   </tr>
@@ -879,19 +870,18 @@ function TasksTab() {
                   {tasks.map((t: any) => (
                     <tr key={t.id} className="border-b">
                       <td className="py-2 pr-3">
-                        <div className="font-medium">{t.title || "—"}</div>
+                        <div className="font-medium">{t.title}</div>
                         <div className="text-xs text-gray-500">{t.description}</div>
                       </td>
                       <td className="py-2 pr-3">
                         <Pill className="bg-blue-100 text-blue-800 capitalize">{t.task_type}</Pill>
                       </td>
                       <td className="py-2 pr-3">
-                        <div>{t.city}</div>
+                        <div>{t.city || "—"}</div>
                         {t.suburb && <div className="text-xs text-gray-500">{t.suburb}</div>}
                       </td>
                       <td className="py-2 pr-3">{statusPill(t.status)}</td>
-                      <td className="py-2 pr-3">{statusPill(t.priority)}</td>
-                      <td className="py-2 pr-3">{fmtDate(t.due_date)}</td>
+                      <td className="py-2 pr-3">{fmtDate(t.scheduled_date)}</td>
                       <td className="py-2 pr-3">
                         <div className="flex gap-2">
                           {t.status === 'open' && (
