@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import VerificationForm from "@/components/volunteer/VerificationForm";
 import {
   Calendar,
   Camera,
@@ -30,7 +31,7 @@ import CommunityFeed from "@/components/volunteer/CommunityFeed";
 import MySchedule from "@/components/volunteer/MySchedule";
 import * as V from "@/lib/volunteer";
 
-type TabId = "tasks" | "impact" | "stories" | "schedule" | "admin";
+type TabId = "tasks" | "impact" | "stories" | "schedule" | "verification" | "admin";
 type Role = "pickup" | "delivery";
 
 interface UserStats {
@@ -255,7 +256,7 @@ const Volunteer: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>("tasks");
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [hydrating, setHydrating] = useState(true);
-
+  const [showAchievement, setShowAchievement] = useState(true);
   const [userStats, setUserStats] = useState<UserStats>({
     totalTasks: 0,
     tasksThisWeek: 0,
@@ -742,6 +743,7 @@ const Volunteer: React.FC = () => {
                     ? "bg-gradient-to-r from-emerald-500 to-lime-500 text-white shadow-lg"
                     : "hover:bg-emerald-50 dark:hover:bg-emerald-900/20",
               },
+
               {
                 id: "schedule",
                 label: "Schedule",
@@ -751,6 +753,16 @@ const Volunteer: React.FC = () => {
                     ? "bg-gradient-to-r from-lime-500 to-emerald-500 text-white shadow-lg"
                     : "hover:bg-lime-50 dark:hover:bg-emerald-900/20",
               },
+
+               {
+    id: "verification",
+    label: "Get Verified",
+    icon: Shield,
+    gradient:
+      activeTab === "verification"
+        ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg"
+        : "hover:bg-purple-50 dark:hover:bg-purple-900/20",
+  },
               ...(isAdmin
                 ? [
                     {
@@ -817,6 +829,12 @@ const Volunteer: React.FC = () => {
               </div>
             )}
 
+            {activeTab === "verification" && (
+  <div className="max-w-4xl mx-auto">
+    <VerificationForm />
+  </div>
+)}
+
             {activeTab === "admin" && isAdmin && (
               <div className="max-w-6xl mx-auto">
                 <AdminTaskManager />
@@ -847,24 +865,34 @@ const Volunteer: React.FC = () => {
           </div>
         </div>
 
-        {/* Achievement toast */}
-        {userStats.level > 1 && (
-          <motion.div
-            initial={{ opacity: 0, x: 300 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="fixed bottom-28 right-6 bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-4 rounded-2xl shadow-2xl max-w-sm z-40"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <Trophy className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="font-semibold">Achievement Unlocked!</div>
-                <div className="text-sm opacity-90">You're now a {userStats.rank}!</div>
-              </div>
-            </div>
-          </motion.div>
-        )}
+{/* Achievement toast */}
+{userStats.level > 1 && showAchievement && !sessionStorage.getItem('achievement_shown') && (
+  <motion.div
+    initial={{ opacity: 0, x: 300 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: 300 }}
+    className="fixed bottom-28 right-6 bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-4 rounded-2xl shadow-2xl max-w-sm z-40"
+  >
+    <div className="flex items-center space-x-3">
+      <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+        <Trophy className="w-5 h-5" />
+      </div>
+      <div>
+        <div className="font-semibold">Achievement Unlocked!</div>
+        <div className="text-sm opacity-90">You're now a {userStats.rank}!</div>
+      </div>
+      <button
+        onClick={() => {
+          setShowAchievement(false);
+          sessionStorage.setItem('achievement_shown', 'true');
+        }}
+        className="ml-2 text-white/70 hover:text-white"
+      >
+        ✕
+      </button>
+    </div>
+  </motion.div>
+)}
       </div>
     </div>
   );

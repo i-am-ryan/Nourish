@@ -4,26 +4,26 @@ import { ShoppingBag, CheckCircle2, Clock, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
-const hero = "/lovable-uploads/geojango-maps-Z8UgB80_46w-unsplash.jpg";
+const hero = "/lovable-uploads/nico-smit-NFoerQuvzrs-unsplash.jpg";
 
 const features = [
   {
     icon: ShoppingBag,
     title: "Bag of the day",
     text: "Fresh, balanced essentials hand-packed by volunteers.",
-    image: "/lovable-uploads/alexander-simonsen-44al1GlFVxo-unsplash.jpg",
+    image: "/lovable-uploads/ismael-paramo-Cns0h4ypRyA-unsplash.jpg",
   },
   {
     icon: Clock,
     title: "Pick a time",
     text: "Choose a pickup window that suits you.",
-    image: "/lovable-uploads/jack-b-_6KWbHyfJDE-unsplash.jpg",
+    image: "/lovable-uploads/djim-loic-ft0-Xu4nTvA-unsplash.jpg",
   },
   {
     icon: CheckCircle2,
     title: "Tailored to you",
     text: "Respecting dietary & religious preferences.",
-    image: "/lovable-uploads/c84c72dc-5e01-4b9e-a7c8-fcc3dbfcf5e6.png",
+    image: "/lovable-uploads/no-revisions-ixS7UCRJTdM-unsplash.jpg",
   },
 ];
 
@@ -94,7 +94,7 @@ export default function FoodBag() {
           Get your bag at your nearby hub
         </Button>
         <p className="text-sm text-gray-500 mt-3">
-          You’ll choose a hub first, then complete your bag request.
+          You’ll choose a hub first, then complete your bag request. Click the details button on hub of your choice to get a bag.
         </p>
       </div>
     </div>

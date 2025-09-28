@@ -5,6 +5,8 @@ import { apiService } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
+import { sendDonationConfirmationEmail } from "@/lib/emailService";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -347,6 +349,61 @@ p_payload: {
   });
 } catch {
   // non-fatal
+}
+
+// Push a notification for the signed-in user
+try {
+  await supabase.rpc("push_notification", {
+    p_user_id: user.id,
+    p_type: "donation_created",
+    p_title: "Donation scheduled",
+    p_message: `Drop-off at ${hub?.name ?? "your selected hub"} at ${form.dropoff_time}.`,
+    p_payload: {
+      title: form.title,
+      dropoff_time: form.dropoff_time,
+      hub: hub
+        ? { 
+            name: hub.name, 
+            city: hub.city, 
+            suburb: hub.suburb, 
+            address: hub.address || hub.address_line1 || `${hub.city} Hub`,
+            full_location: `${hub.name}, ${hub.city}${hub.suburb ? ` • ${hub.suburb}` : ''}`
+          }
+        : null,
+      maps_url: hub ? mapsUrl(hub) : null,
+      recipients: chosen,
+    },
+  });
+} catch {
+  // non-fatal
+}
+
+// Send donation confirmation email
+try {
+  await sendDonationConfirmationEmail(
+    user.email!,
+    profile?.full_name || user.email!.split('@')[0],
+    {
+      title: form.title,
+      description: form.description,
+      food_type: form.food_type,
+      quantity: form.quantity,
+      expiry_date: form.expiry_date,
+      dropoff_time: form.dropoff_time
+    },
+    {
+      name: hub?.name,
+      city: hub?.city,
+      suburb: hub?.suburb,
+      address: hub?.address || hub?.address_line1,
+      maps_url: mapsUrl(hub)
+    },
+    chosen // the recipients array
+  );
+  console.log('Donation confirmation email sent successfully');
+} catch (emailError) {
+  console.error('Failed to send donation confirmation email:', emailError);
+  // Don't fail the whole process if email fails
 }
 
       setReceiptOpen(true);
@@ -824,6 +881,16 @@ p_payload: {
                   <p className="text-sm text-gray-600">
                     Check your <strong>Notifications</strong> panel to see your donation confirmation.
                   </p>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+  <div className="flex items-center space-x-2 text-blue-800 mb-2">
+    <CheckCircle2 className="w-4 h-4" />
+    <span className="font-medium">Confirmation sent</span>
+  </div>
+  <p className="text-sm text-blue-700">
+    A confirmation email with all donation details has been sent to your inbox. 
+    You can also check your <strong>Notifications</strong> panel for updates.
+  </p>
+</div>
 
                   <div className="flex justify-end">
                     <Button onClick={() => setReceiptOpen(false)} className="rounded-xl">

@@ -17,6 +17,7 @@ export type Hub = {
   phone: string | null;
   website: string | null;
   image_url: string | null;
+  photo_url: string | null;
   rating: number | null;
   meals_per_day: number | null;
   open_to_public: boolean;
@@ -55,15 +56,17 @@ export default function HubCard({ hub }: Props) {
         className="group relative overflow-hidden rounded-3xl border bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl shadow-xl border-white/50 dark:border-gray-700/40"
       >
         <div className="relative h-44">
-          <img
-            src={
-              hub.image_url ||
-              "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=1600&auto=format&fit=crop"
-            }
-            alt={hub.name}
-            className="absolute inset-0 w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
-          />
+        // Replace the img src in the card (around line 62)
+<img
+  src={
+    hub.image_url || 
+    hub.photo_url || 
+    "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=1600&auto=format&fit=crop"
+  }
+  alt={hub.name}
+  className="absolute inset-0 w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
+  loading="lazy"
+/>
           <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/15 to-transparent" />
 
           <div className="absolute top-3 left-3 flex gap-2">
@@ -131,14 +134,16 @@ export default function HubCard({ hub }: Props) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative h-60">
-              <img
-                src={
-                  hub.image_url ||
-                  "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=1600&auto=format&fit=crop"
-                }
-                alt={hub.name}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
+             // Replace the img src in the modal
+<img
+  src={
+    hub.image_url || 
+    hub.photo_url || 
+    "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=1600&auto=format&fit=crop"
+  }
+  alt={hub.name}
+  className="absolute inset-0 w-full h-full object-cover"
+/>
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/15 to-transparent" />
               <button
                 onClick={() => setOpen(false)}

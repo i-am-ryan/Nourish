@@ -8,9 +8,11 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-
+import AIHubComponents from "./components/ai/AIHub";
+import AIHub from "./pages/AIHub";
 import Navigation from "./components/Navigation";
 import Footer from "./components/Footer";
+
 
 import Home from "./pages/Home";
 import About from "./pages/About";
@@ -36,8 +38,9 @@ import AdminUsers from "./pages/AdminUsers";
 import MyRequests from "./pages/MyRequests";
 import AdminClaimTriage from "./pages/AdminClaimTriage";
 import AdminVolunteerTasks from "./pages/AdminVolunteerTasks";
-
+import AdminVerification from "./pages/AdminVerification";
 import AccountCreated from "./pages/AccountCreated";
+
 
 const queryClient = new QueryClient();
 
@@ -116,6 +119,14 @@ const App = () => (
                   }
                 />
                 <Route
+  path="/admin/verification"
+  element={
+    <ProtectedRoute requiredRole="admin">
+      <AdminVerification />
+    </ProtectedRoute>
+  }
+/>
+                <Route
                   path="/admin/volunteer-tasks"
                   element={
                     <ProtectedRoute requiredRole="admin">
@@ -123,6 +134,8 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+
+                <Route path="/ai" element={<AIHub />} />
 
                 {/* Auth/Onboarding */}
                 <Route path="/auth/callback" element={<EmailConfirmation />} />
@@ -133,7 +146,11 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
               <Footer />
+              <AIHubComponents />
+              
             </div>
+            
+          
           </BrowserRouter>
         </AuthProvider>
       </ThemeProvider>

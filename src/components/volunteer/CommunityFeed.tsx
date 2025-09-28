@@ -102,6 +102,7 @@ type CommentRow = {
   id: string;
   comment_text: string;
   created_at: string;
+  user_id: string; // Add this line
   profiles?: { full_name?: string | null } | null;
 };
 
@@ -156,12 +157,23 @@ const authorName = (s: Story) => {
   if (curatedStory) return curatedStory.author;
   
   // For real user stories, show their actual profile name
-  if (s.profiles?.full_name) {
+  if (s.profiles?.full_name && s.profiles.full_name.trim() !== '') {
     return s.profiles.full_name;
   }
   
-  // Fallback to generic names only if no profile name exists
-  return s.is_featured ? "Community Hero" : "Anonymous Volunteer";
+  // If no profile name available
+  if (s.user_id) {
+    return "Community Member";
+  }
+  
+  return "Anonymous";
+};
+
+const getCommenterName = (comment: CommentRow) => {
+  if (comment.profiles?.full_name && comment.profiles.full_name.trim() !== '') {
+    return comment.profiles.full_name;
+  }
+  return "Community Member";
 };
 
  const getInitials = (name: string) => {
@@ -428,70 +440,79 @@ const ensureCuratedStories = async () => {
     }
   };
 
-  const openComments = async (id: string) => {
-    setOpenCommentsFor(id);
-    try {
-      const { data } = await V.listStoryComments(id);
-      setComments((data as CommentRow[]) || []);
-    } catch {
-      toast({
-        title: "Error loading comments",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    }
+const openComments = async (id: string) => {
+  setOpenCommentsFor(id);
+  
+  // Debug auth state
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  console.log('Current auth user:', authUser);
+  console.log('Auth user ID:', authUser?.id);
+  
+  try {
+    const { data } = await V.listStoryComments(id);
+    console.log('Comments loaded:', data);
+    setComments((data as CommentRow[]) || []);
+  } catch (error) {
+    console.error('Error loading comments:', error);
+    toast({
+      title: "Error loading comments",
+      description: "Please try again.",
+      variant: "destructive",
+    });
+  }
+};
+
+const postComment = async () => {
+  if (!openCommentsFor || !newComment.trim()) return;
+  if (!user) {
+    toast({
+      title: "Sign in required",
+      description: "Please sign in to comment.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  const text = newComment.trim();
+  // optimistic append + count bump
+  const temp: CommentRow = {
+    id: `temp-${Date.now()}`,
+    comment_text: text,
+    created_at: new Date().toISOString(),
+    user_id: user.id, // Add this line
+    profiles: { full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || "You" },
   };
+  setComments((prev) => [temp, ...prev]);
+  setStories((prev) =>
+    prev.map((s) =>
+      s.id === openCommentsFor
+        ? { ...s, comments_count: (s.comments_count || 0) + 1 }
+        : s
+    )
+  );
+  setNewComment("");
 
-  const postComment = async () => {
-    if (!openCommentsFor || !newComment.trim()) return;
-    if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to comment.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const text = newComment.trim();
-    // optimistic append + count bump
-    const temp: CommentRow = {
-      id: `temp-${Date.now()}`,
-      comment_text: text,
-      created_at: new Date().toISOString(),
-      profiles: { full_name: user.user_metadata?.full_name || "You" },
-    };
-    setComments((prev) => [temp, ...prev]);
+  try {
+    await V.addStoryComment(openCommentsFor, text);
+    await openComments(openCommentsFor);
+  } catch {
     setStories((prev) =>
       prev.map((s) =>
         s.id === openCommentsFor
-          ? { ...s, comments_count: (s.comments_count || 0) + 1 }
+          ? {
+              ...s,
+              comments_count: Math.max(0, (s.comments_count || 0) - 1),
+            }
           : s
       )
     );
-    setNewComment("");
-
-    try {
-      await V.addStoryComment(openCommentsFor, text);
-      await openComments(openCommentsFor);
-    } catch {
-      setStories((prev) =>
-        prev.map((s) =>
-          s.id === openCommentsFor
-            ? {
-                ...s,
-                comments_count: Math.max(0, (s.comments_count || 0) - 1),
-              }
-            : s
-        )
-      );
-      toast({
-        title: "Comment failed",
-        description: "Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+    toast({
+      title: "Comment failed",
+      description: "Please try again.",
+      variant: "destructive",
+    });
+  }
+};
 
   const loadLikers = async (id: string) => {
     setOpenLikesFor(id);
@@ -961,22 +982,47 @@ const ensureCuratedStories = async () => {
               </div>
 
               <div className="space-y-4 max-h-96 overflow-y-auto pr-2 mb-6">
-                {comments.map((c) => (
-                  <div key={c.id} className="flex items-start space-x-3 p-3 bg-gray-50/50 dark:bg-gray-700/50 rounded-2xl">
-                    <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                      {getInitials(c.profiles?.full_name || "User")}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">
-                        {c.profiles?.full_name || "Community Member"}
-                      </div>
-                      <div className="mt-1">{c.comment_text}</div>
-                      <div className="text-xs text-gray-500 mt-2">
-                        {new Date(c.created_at).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+         {comments.map((c) => (
+  <div key={c.id} className="flex items-start space-x-3 p-3 bg-gray-50/50 dark:bg-gray-700/50 rounded-2xl group">
+    <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+      {getInitials(getCommenterName(c))}
+    </div>
+    <div className="flex-1">
+      <div className="flex items-center justify-between">
+        <div className="font-medium text-sm">
+          {getCommenterName(c)}
+        </div>
+        {user && c.user_id === user.id && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              try {
+                await V.deleteStoryComment(c.id);
+                toast({ title: "Comment deleted" });
+                // Refresh comments
+                await openComments(openCommentsFor!);
+              } catch (error) {
+                toast({
+                  title: "Delete failed",
+                  description: "Please try again.",
+                  variant: "destructive",
+                });
+              }
+            }}
+            className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+      <div className="mt-1">{c.comment_text}</div>
+      <div className="text-xs text-gray-500 mt-2">
+        {new Date(c.created_at).toLocaleString()}
+      </div>
+    </div>
+  </div>
+))}
 
                 {!comments.length && (
                   <div className="text-center py-8 text-gray-500 dark:text-gray-400">

@@ -1,5 +1,3 @@
-// src/components/Navigation.tsx
-
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,14 +23,15 @@ const Navigation = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
-const navItems = [
-  { path: '/', label: 'Home' },
-  { path: '/about', label: 'About' },
-  { path: '/donate', label: 'Donate' },   // was /surplus
-  { path: '/volunteer', label: 'Volunteer' },
-  { path: '/bag', label: 'Food Bag' },    // new
-  { path: '/hubs', label: 'Food Hubs' },
-];
+  const navItems = [
+    { path: '/', label: 'Home' },
+    { path: '/about', label: 'About' },
+    { path: '/donate', label: 'Donate' },
+    { path: '/volunteer', label: 'Volunteer' },
+    { path: '/bag', label: 'Food Bag' },
+    { path: '/hubs', label: 'Food Hubs' },
+    
+  ];
 
   const getInitials = (name: string) =>
     name
@@ -83,10 +82,34 @@ const navItems = [
                   {item.label}
                 </Link>
               ))}
+
+  {/* Special AI Hub button */}
+  <Link
+    to="/ai"
+    className={`px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-200 ${
+      isActive('/ai')
+        ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg'
+        : 'bg-gradient-to-r from-purple-50 to-blue-50 text-purple-700 hover:from-purple-100 hover:to-blue-100 border border-purple-200'
+    }`}
+  >
+    AI Assistant
+  </Link>
+
+
             </div>
 
             {/* Mobile hamburger + notification */}
             <div className="flex items-center md:hidden">
+              {/* VERIFIED VOLUNTEER BADGE - VISIBLE ON MOBILE */}
+              {user && profile?.is_verified_volunteer && (
+                <div className="flex items-center space-x-1 px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-full border border-emerald-200 dark:border-emerald-800 mr-2">
+                  <div className="w-4 h-4 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-xs">
+                    🏅
+                  </div>
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Verified</span>
+                </div>
+              )}
+              
               <Button
                 variant="ghost"
                 size="sm"
@@ -119,6 +142,17 @@ const navItems = [
                   >
                     <Bell className="h-5 w-5" />
                   </Button>
+                  
+                  {/* VERIFIED VOLUNTEER BADGE - VISIBLE ON DESKTOP */}
+                  {profile?.is_verified_volunteer && (
+                    <div className="flex items-center space-x-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-full border border-emerald-200 dark:border-emerald-800">
+                      <div className="w-5 h-5 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-xs">
+                        🏅
+                      </div>
+                      <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Verified</span>
+                    </div>
+                  )}
+                  
                   {profile?.role === 'admin' && (
                     <Link to="/admin">
                       <Button variant="ghost" size="sm">
@@ -143,6 +177,17 @@ const navItems = [
                           <Badge variant="secondary" className="mt-1">{profile?.role}</Badge>
                         </div>
                       </DropdownMenuLabel>
+                      
+                      {/* VERIFIED BADGE */}
+                      {profile?.is_verified_volunteer && (
+                        <div className="flex items-center space-x-2 px-3 py-2 mx-2 mb-2 bg-emerald-50 rounded-lg">
+                          <div className="w-6 h-6 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                            🏅
+                          </div>
+                          <span className="text-sm font-medium text-emerald-700">Verified Volunteer</span>
+                        </div>
+                      )}
+                      
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
                         <Link to="/profile">
@@ -155,14 +200,14 @@ const navItems = [
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                     <DropdownMenuItem
-  onClick={(e) => {
-    e.preventDefault(); // stop any default link behaviour
-    signOut(); // call your updated signOut function
-  }}
->
-  <LogOut className="mr-2 h-4 w-4" /> Sign out
-</DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault();
+                          signOut();
+                        }}
+                      >
+                        <LogOut className="mr-2 h-4 w-4" /> Sign out
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>
@@ -194,6 +239,20 @@ const navItems = [
                 {item.label}
               </Link>
             ))}
+
+ {/* Special mobile AI button */}
+      <Link
+        to="/ai"
+        onClick={() => setIsMenuOpen(false)}
+        className={`block px-4 py-3 rounded-lg text-lg font-medium transition-colors ${
+          isActive('/ai')
+            ? 'bg-gradient-to-r from-purple-100 to-blue-100 text-purple-700 border border-purple-200'
+            : 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-gray-800'
+        }`}
+      >
+        AI Assistant
+      </Link>
+
             <hr className="border-gray-200 dark:border-gray-700" />
             {!user && (
               <Link to="/signin" onClick={() => setIsMenuOpen(false)}>

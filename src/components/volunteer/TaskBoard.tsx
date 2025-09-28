@@ -245,7 +245,25 @@ export default function TaskBoard({ roleFilter, userStats, setUserStats }: TaskB
   <Button
     onClick={() => {
       const taskId = t.id;
-      act(() => V.acceptTask(taskId), "Task accepted", "accept");
+      act(async () => {
+        const result = await V.acceptTask(taskId);
+        
+        // ADD EMAIL NOTIFICATION after successful acceptance
+        if (!result.error && user?.email) {
+          try {
+            const { sendTaskAcceptedNotification } = await import("@/lib/emailService");
+            await sendTaskAcceptedNotification(
+              user.email,
+              user.user_metadata?.full_name || 'Volunteer',
+              t
+            );
+          } catch (emailError) {
+            console.error('Failed to send acceptance email:', emailError);
+          }
+        }
+        
+        return result;
+      }, "Task accepted", "accept");
     }}
     size="sm"
   >
@@ -272,7 +290,25 @@ export default function TaskBoard({ roleFilter, userStats, setUserStats }: TaskB
     variant="outline"
     onClick={() => {
       const taskId = t.id;
-      act(() => V.completeTask(taskId), "Task completed", "complete");
+      act(async () => {
+        const result = await V.completeTask(taskId);
+        
+        // ADD EMAIL NOTIFICATION after successful completion
+        if (!result.error && user?.email) {
+          try {
+            const { sendTaskCompletedNotification } = await import("@/lib/emailService");
+            await sendTaskCompletedNotification(
+              user.email,
+              user.user_metadata?.full_name || 'Volunteer',
+              t
+            );
+          } catch (emailError) {
+            console.error('Failed to send completion email:', emailError);
+          }
+        }
+        
+        return result;
+      }, "Task completed", "complete");
     }}
     size="sm"
   >

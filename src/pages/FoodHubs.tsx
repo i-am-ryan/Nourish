@@ -43,8 +43,8 @@ const FOOD_BAG = ["Bread", "Rice", "Pap", "Chicken soup", "Veg hamper", "Canned 
 function fallbackHub(city: City, suburb: string, i: number): Hub {
   const coords = SUBURB_COORDS[city][suburb] ?? { lat: -26.2, lng: 28.04 };
   const images = [
-    "/lovable-uploads/geojango-maps-Z8UgB80_46w-unsplash.jpg",
-    "/lovable-uploads/joel-muniz-A4Ax1ApccfA-unsplash.jpg",
+    "/lovable-uploads/arstin-chen-yvP5VhVyBMY-unsplash.jpg",
+    "/lovable-uploads/adli-hadiyan-munif-prnjpS_ZnKw-unsplash.jpg",
     "/lovable-uploads/ella-olsson-rD3YrnhTmf0-unsplash.jpg",
     "/lovable-uploads/markus-spiske-5UJbKYUQ1kA-unsplash.jpg",
     "/lovable-uploads/priscilla-du-preez-K8XYGbw4Ahg-unsplash.jpg",
@@ -58,8 +58,10 @@ function fallbackHub(city: City, suburb: string, i: number): Hub {
     city,
     suburb,
     address: `${suburb} City`,
+    address_line1: `${suburb} City`, 
     phone: "+27 12 345 6789",
     image_url: pick,
+    photo_url: null, // ADD THIS LINE
     rating: 4 + (i % 10) / 10, // 4.0 – 4.9
     meals_per_day: 180 + (i % 5) * 20,
     open_to_public: true,
@@ -130,6 +132,7 @@ export default function FoodHubs() {
             city: (r.city as City) ?? city,
             suburb: sub,
             address: String(r.address ?? `${sub} City`),
+              address_line1: String(r.address_line1 ?? `${sub} City`),
             phone: String(r.phone ?? "+27 12 345 6789"),
             image_url: String(
               r.image_url ??

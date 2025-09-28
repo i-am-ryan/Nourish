@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
-
+import { sendVerificationApprovedNotification } from "@/lib/emailService";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -111,6 +111,8 @@ type TabKey =
   | "announcements"
   | "users"
   | "volunteer_tasks"
+  | "volunteer_verification"
+   | "bag_requests"
   | "food_hubs";
 
 /* ------------------------------------------------------------------ */
@@ -143,7 +145,7 @@ export default function AdminDashboard() {
   const initialTab = useMemo(() => {
     const qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
     const t = (qs?.get("tab") || "overview") as TabKey;
-    const ok = ["overview","donations","claims","announcements","users","volunteer_tasks","food_hubs"].includes(t);
+    const ok = ["overview","donations","claims","bag_requests","announcements","users","volunteer_tasks","volunteer_verification","food_hubs"].includes(t);
     return (ok ? t : "overview") as TabKey;
   }, []);
 
@@ -242,8 +244,10 @@ export default function AdminDashboard() {
       { key: "donations", label: "Donations", Icon: IcoPkg },
       { key: "claims", label: "Claims", Icon: IcoClip },
       { key: "announcements", label: "Announcements", Icon: IcoMegaphone },
+        { key: "bag_requests", label: "Food Bag Requests", Icon: IcoPkg },
       { key: "users", label: "Users", Icon: IcoUsers },
       { key: "volunteer_tasks", label: "Volunteer Tasks", Icon: IcoCheck },
+      { key: "volunteer_verification", label: "Volunteer Verification", Icon: IcoCheck },
       { key: "food_hubs", label: "Food Hubs", Icon: IcoPin },
     ];
     return (
@@ -655,81 +659,140 @@ function TasksTab() {
     load();
   }, []);
 
-  const createTask = async () => {
-    if (!title.trim()) {
-      toast({ title: "Enter a title", variant: "destructive" });
-      return;
-    }
-    if (!description.trim()) {
-      toast({ title: "Enter a description", variant: "destructive" });
-      return;
-    }
+const createTask = async () => {
+  if (!title.trim()) {
+    toast({ title: "Enter a title", variant: "destructive" });
+    return;
+  }
+  if (!description.trim()) {
+    toast({ title: "Enter a description", variant: "destructive" });
+    return;
+  }
 
-    setCreating(true);
+  setCreating(true);
+  try {
+    const payload = {
+      title: title.trim(),
+      description: description.trim(),
+      task_type: taskType,
+      status: "open",
+      priority,
+      city: city.trim() || null,
+      suburb: suburb.trim() || null,
+      address_line1: address.trim() || null,
+      scheduled_date: due ? new Date(due).toISOString() : null,
+      created_by: null,
+      assigned_to: null,
+    };
+
+    console.log('Creating task with payload:', payload);
+
+    const { data, error } = await supabase
+      .from("volunteer_tasks")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) throw error;
+    
+    console.log('Task created successfully:', data);
+
+    // Send notifications and emails
     try {
-      const payload = {
-        title: title.trim(),
-        description: description.trim(),
-        task_type: taskType,
-        status: "open",
-        priority,
-        city: city.trim() || null,
-        suburb: suburb.trim() || null,
-        address_line1: address.trim() || null,
-        scheduled_date: due ? new Date(due).toISOString() : null,
-      };
+   const { data: volunteers, error: volunteerError } = await supabase
+  .from("profiles")
+  .select("id, email, full_name")
+  .eq("is_active", true)
+  .not("email", "is", null);
 
-      const { data, error } = await supabase
-        .from("volunteer_tasks")
-        .insert(payload)
-        .select()
-        .single();
-
-      if (error) throw error;
-    try {
-      const { data: volunteers } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("role", "volunteer");
-
-      if (volunteers && volunteers.length > 0) {
-        for (const volunteer of volunteers) {
-          await supabase.from("notifications").insert({
+      if (volunteerError) {
+        console.error('Error fetching volunteers:', volunteerError);
+      } else {
+        console.log('Found volunteers:', volunteers?.length || 0);
+        
+        if (volunteers && volunteers.length > 0) {
+          // Create detailed notifications with payload
+          const notifications = volunteers.map(volunteer => ({
             user_id: volunteer.id,
             type: "volunteer_task_assigned",
             title: "New Task Available",
             message: `New ${taskType} task: ${title.trim()}`,
+            audience: "user",
             payload: {
               task_id: data.id,
               role: taskType,
-              when: due || "No deadline set",
-              hub: city ? { name: "Task Location", city, suburb } : null
-            }
+              when: due || "Flexible timing",
+              hub: city ? { 
+                name: "Task Location", 
+                city: city.trim(), 
+                suburb: suburb.trim(),
+                address: address.trim()
+              } : null
+            },
+            is_read: false
+          }));
+
+          const { error: notifError } = await supabase
+            .from("notifications")
+            .insert(notifications);
+
+          if (notifError) {
+            console.error('Error creating notifications:', notifError);
+          } else {
+            console.log('Notifications created successfully');
+          }
+
+          // Send emails
+          const { sendNewTaskNotification } = await import("@/lib/emailService");
+          
+          const emailPromises = volunteers.map(volunteer => {
+            console.log('Sending email to:', volunteer.email);
+            return sendNewTaskNotification(
+              volunteer.email,
+              volunteer.full_name || 'Volunteer',
+              {
+                title: title.trim(),
+                description: description.trim(), 
+                task_type: taskType,
+                city: city.trim(),
+                suburb: suburb.trim(),
+                scheduled_date: due,
+                priority: priority
+              }
+            );
           });
+          
+          const emailResults = await Promise.allSettled(emailPromises);
+          
+          const successful = emailResults.filter(result => result.status === 'fulfilled').length;
+          const failed = emailResults.filter(result => result.status === 'rejected').length;
+          
+          console.log(`Email notifications: ${successful} sent successfully, ${failed} failed`);
         }
       }
     } catch (notifError) {
-      console.error("Failed to create notifications:", notifError);
-      // Don't fail the task creation if notifications fail
+      console.error("Failed to send notifications:", notifError);
     }
-      // Clear form
-      setTitle("");
-      setDescription("");
-      setCity("");
-      setSuburb("");
-      setAddress("");
-      setDue("");
-      setTaskType("pickup");
-      setPriority("medium");
 
-      toast({ title: "Task created successfully" });
-      await load();
-    } catch (e: any) {
-      toast({ title: "Failed to create task", description: e.message, variant: "destructive" });
-    } finally {
-      setCreating(false);
-    }
-  };
+    // Clear form
+    setTitle("");
+    setDescription("");
+    setCity("");
+    setSuburb("");
+    setAddress("");
+    setDue("");
+    setTaskType("pickup");
+    setPriority("medium");
+
+    toast({ title: "Task created and notifications sent" });
+    await load();
+  } catch (e: any) {
+    console.error('Task creation failed:', e);
+    toast({ title: "Failed to create task", description: e.message, variant: "destructive" });
+  } finally {
+    setCreating(false);
+  }
+};
 
   const changeStatus = async (task: any, status: string) => {
     try {
@@ -1043,6 +1106,664 @@ function ReadAnnouncement({
   );
 }
 
+function VerificationTab() {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState<string | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [filteredRequests, setFilteredRequests] = useState<any[]>([]);
+const [searchTerm, setSearchTerm] = useState('');
+const [statusFilter, setStatusFilter] = useState('all');
+const [notificationFilter, setNotificationFilter] = useState('all');
+
+const loadRequests = async () => {
+  try {
+    setLoading(true);
+    
+    // First, get the verification requests
+    const { data: requests, error: requestsError } = await supabase
+      .from('volunteer_verification_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (requestsError) throw requestsError;
+
+    if (!requests || requests.length === 0) {
+      setRequests([]);
+      setFilteredRequests([]);
+      return;
+    }
+
+    // Then get the profile data separately
+    const userIds = requests.map(r => r.user_id);
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', userIds);
+
+    if (profilesError) throw profilesError;
+
+    // Combine the data
+    const requestsWithProfiles = requests.map(request => ({
+      ...request,
+      profiles: profiles?.find(p => p.id === request.user_id) || { 
+        full_name: request.full_name,
+        email: 'unknown@example.com' 
+      }
+    }));
+
+    setRequests(requestsWithProfiles || []);
+    setFilteredRequests(requestsWithProfiles || []);
+  } catch (error: any) {
+    toast({
+      title: "Failed to load requests",
+      description: error.message,
+      variant: "destructive"
+    });
+    setRequests([]);
+    setFilteredRequests([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+const handleApproval = async (requestId: string, decision: 'approved' | 'rejected') => {
+  setProcessing(requestId);
+  try {
+    const request = requests.find(r => r.id === requestId);
+    if (!request) throw new Error('Request not found');
+
+    // Update verification request
+    const { error: updateError } = await supabase
+      .from('volunteer_verification_requests')
+      .update({
+        status: decision,
+        reviewed_by: (await supabase.auth.getUser()).data.user?.id,
+        reviewed_at: new Date().toISOString()
+      })
+      .eq('id', requestId);
+
+    if (updateError) throw updateError;
+
+    // If approved, update profile and set volunteer_active ONLY if they want notifications
+    if (decision === 'approved') {
+      const profileUpdates: any = { is_verified_volunteer: true };
+      
+      // Only set volunteer_active to true if they want task notifications
+      if (request.wants_task_notifications) {
+        profileUpdates.volunteer_active = true;
+      }
+      
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update(profileUpdates)
+        .eq('id', request.user_id);
+
+      if (profileError) throw profileError;
+
+      // Send approval email
+      try {
+        const { sendVerificationApprovedNotification } = await import("@/lib/emailService");
+        await sendVerificationApprovedNotification(
+          request.profiles.email,
+          request.profiles.full_name || request.full_name
+        );
+      } catch (emailError) {
+        console.error('Failed to send approval email:', emailError);
+      }
+    }
+
+    toast({
+      title: decision === 'approved' ? "Volunteer Verified" : "Request Rejected",
+      description: decision === 'approved' 
+        ? request.wants_task_notifications
+          ? "The volunteer has been verified and will receive task notifications."
+          : "The volunteer has been verified."
+        : "The verification request has been rejected."
+    });
+
+    setSelectedRequest(null);
+    await loadRequests();
+  } catch (error: any) {
+    toast({
+      title: "Action Failed",
+      description: error.message,
+      variant: "destructive"
+    });
+  } finally {
+    setProcessing(null);
+  }
+};
+
+// Filter function
+const applyFilters = () => {
+  let filtered = [...requests];
+
+  // Search filter
+  if (searchTerm) {
+    filtered = filtered.filter(request => 
+      request.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.profiles.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.motivation.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }
+
+  // Status filter
+  if (statusFilter !== 'all') {
+    filtered = filtered.filter(request => request.status === statusFilter);
+  }
+
+  // Notification filter
+  if (notificationFilter !== 'all') {
+    if (notificationFilter === 'wants_notifications') {
+      filtered = filtered.filter(request => request.wants_task_notifications);
+    } else if (notificationFilter === 'no_notifications') {
+      filtered = filtered.filter(request => !request.wants_task_notifications);
+    }
+  }
+
+  setFilteredRequests(filtered);
+};
+
+useEffect(() => {
+  applyFilters();
+}, [searchTerm, statusFilter, notificationFilter, requests]);
+
+  if (loading) {
+  // List view with filters
+// List view with filters
+return (
+  <Card>
+    <CardHeader>
+      <CardTitle>Volunteer Verification Requests</CardTitle>
+      <CardDescription>Review and approve volunteer verification applications</CardDescription>
+      
+      {/* Filters */}
+      <div className="flex flex-wrap gap-4 pt-4">
+        <div className="flex-1 min-w-[200px]">
+          <input
+            type="text"
+            placeholder="Search by name, email, or motivation..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+        >
+          <option value="all">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <select
+          value={notificationFilter}
+          onChange={(e) => setNotificationFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+        >
+          <option value="all">All Notifications</option>
+          <option value="wants_notifications">Wants Notifications</option>
+          <option value="no_notifications">No Notifications</option>
+        </select>
+      </div>
+
+      {/* Results count */}
+      <div className="text-sm text-gray-600">
+        Showing {filteredRequests.length} of {requests.length} requests
+      </div>
+    </CardHeader>
+    <CardContent>
+      {filteredRequests.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          {requests.length === 0 ? "No verification requests found" : "No requests match the current filters"}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredRequests.map((request) => (
+            <div
+              key={request.id}
+              onClick={() => setSelectedRequest(request)}
+              className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h4 className="font-medium">{request.full_name}</h4>
+                    <Pill className={
+                      request.status === 'approved' ? "bg-emerald-600 text-white" :
+                      request.status === 'rejected' ? "bg-rose-600 text-white" : 
+                      "bg-amber-500 text-white"
+                    }>
+                      {request.status}
+                    </Pill>
+                    {request.wants_task_notifications && (
+                      <Pill className="bg-blue-100 text-blue-800">
+                        Notifications
+                      </Pill>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {request.profiles.email} • {new Date(request.created_at).toLocaleDateString()}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {request.motivation.substring(0, 100)}...
+                  </p>
+                </div>
+                <div className="text-sm text-gray-400">
+                  Click to review →
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+);
+  }
+
+  // Detail view when a request is selected
+  if (selectedRequest) {
+    const request = selectedRequest;
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Verification Details - {request.full_name}</h3>
+          <Button variant="outline" onClick={() => setSelectedRequest(null)}>
+            Back to List
+          </Button>
+        </div>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <span>{request.full_name}</span>
+              <Pill className={
+                request.status === 'approved' ? "bg-emerald-600 text-white" :
+                request.status === 'rejected' ? "bg-rose-600 text-white" : 
+                "bg-amber-500 text-white"
+              }>
+                {request.status}
+              </Pill>
+              {request.wants_task_notifications && (
+                <Pill className="bg-blue-100 text-blue-800">
+                  Wants notifications
+                </Pill>
+              )}
+            </CardTitle>
+            <p className="text-sm text-gray-600">
+              {request.profiles.email} • Applied {new Date(request.created_at).toLocaleDateString()}
+            </p>
+          </CardHeader>
+          
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-semibold mb-2">Contact Information</h4>
+                <div className="text-sm space-y-1">
+                  <p><strong>Phone:</strong> {request.phone}</p>
+                  <p><strong>Address:</strong> {request.address}</p>
+                  <p><strong>Emergency Contact:</strong> {request.emergency_contact_name} ({request.emergency_contact_phone})</p>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-semibold mb-2">Availability</h4>
+                <p className="text-sm">{request.availability}</p>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2">Motivation</h4>
+              <p className="text-sm">{request.motivation}</p>
+            </div>
+
+            {request.experience && (
+              <div>
+                <h4 className="font-semibold mb-2">Previous Experience</h4>
+                <p className="text-sm">{request.experience}</p>
+              </div>
+            )}
+
+            {request.status === 'pending' && (
+              <div className="flex space-x-4 pt-4 border-t">
+                <Button
+                  onClick={() => handleApproval(request.id, 'approved')}
+                  disabled={processing === request.id}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  Approve & Verify Volunteer
+                </Button>
+                <Button
+                  onClick={() => handleApproval(request.id, 'rejected')}
+                  disabled={processing === request.id}
+                  variant="destructive"
+                >
+                  Reject Request
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // List view
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Volunteer Verification Requests</CardTitle>
+        <CardDescription>Review and approve volunteer verification applications</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {requests.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No verification requests found
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {requests.map((request) => (
+              <div
+                key={request.id}
+                onClick={() => setSelectedRequest(request)}
+                className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-medium">{request.full_name}</h4>
+                      <Pill className={
+                        request.status === 'approved' ? "bg-emerald-600 text-white" :
+                        request.status === 'rejected' ? "bg-rose-600 text-white" : 
+                        "bg-amber-500 text-white"
+                      }>
+                        {request.status}
+                      </Pill>
+                      {request.wants_task_notifications && (
+                        <Pill className="bg-blue-100 text-blue-800">
+                          📧 Notifications
+                        </Pill>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {request.profiles.email} • {new Date(request.created_at).toLocaleDateString()}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {request.motivation.substring(0, 100)}...
+                    </p>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    Click to review →
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BagRequestsTab() {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [hubFilter, setHubFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [processing, setProcessing] = useState<string | null>(null);
+
+const loadRequests = async () => {
+  setLoading(true);
+  try {
+    // Get bag requests first
+    const { data: bagRequests, error: bagError } = await supabase
+      .from('bag_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (bagError) throw bagError;
+
+    if (!bagRequests || bagRequests.length === 0) {
+      setRequests([]);
+      return;
+    }
+
+    // Get user profiles
+    const userIds = [...new Set(bagRequests.map(r => r.user_id))];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', userIds);
+
+    // Get food hubs
+    const hubIds = [...new Set(bagRequests.map(r => r.hub_id))];
+    const { data: hubs } = await supabase
+      .from('food_hubs')
+      .select('id, name, city, suburb, address_line1')
+      .in('id', hubIds);
+
+    // Combine the data
+    const requestsWithData = bagRequests.map(request => ({
+      ...request,
+      profiles: profiles?.find(p => p.id === request.user_id) || null,
+      food_hubs: hubs?.find(h => h.id === request.hub_id) || null
+    }));
+
+    setRequests(requestsWithData);
+  } catch (error: any) {
+    console.error('Load error:', error);
+    toast({
+      title: "Failed to load bag requests",
+      description: error.message,
+      variant: "destructive"
+    });
+    setRequests([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const updateStatus = async (requestId: string, newStatus: string) => {
+    setProcessing(requestId);
+    try {
+      const { error } = await supabase
+        .from('bag_requests')
+        .update({ status: newStatus })
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      setRequests(prev => prev.map(req => 
+        req.id === requestId ? { ...req, status: newStatus } : req
+      ));
+
+      toast({
+        title: "Status Updated",
+        description: `Request marked as ${newStatus}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const filteredRequests = requests.filter(request => {
+    const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
+    const matchesHub = hubFilter === 'all' || request.food_hubs?.name === hubFilter;
+    const matchesSearch = !searchTerm || 
+      request.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.profiles?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.food_hubs?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesStatus && matchesHub && matchesSearch;
+  });
+
+  const uniqueHubs = [...new Set(requests.map(r => r.food_hubs?.name).filter(Boolean))];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Food Bag Requests</CardTitle>
+        <CardDescription>Manage bag requests from users</CardDescription>
+        
+        <div className="flex flex-wrap gap-4 pt-4">
+          <input
+            type="text"
+            placeholder="Search by user name or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg flex-1 min-w-[200px]"
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg"
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="ready">Bag Ready</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <select
+            value={hubFilter}
+            onChange={(e) => setHubFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg"
+          >
+            <option value="all">All Hubs</option>
+            {uniqueHubs.map(hub => (
+              <option key={hub} value={hub}>{hub}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="text-sm text-gray-600">
+          Showing {filteredRequests.length} of {requests.length} requests
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="text-center py-8 text-gray-500">Loading requests...</div>
+        ) : filteredRequests.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            {requests.length === 0 ? "No bag requests found" : "No requests match the current filters"}
+          </div>
+        ) : (
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2 pr-3">User</th>
+                  <th className="py-2 pr-3">Hub</th>
+                  <th className="py-2 pr-3">Dietary Needs</th>
+                  <th className="py-2 pr-3">Pickup Window</th>
+                  <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Requested</th>
+                  <th className="py-2 pr-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRequests.map((request) => (
+                  <tr key={request.id} className="border-b">
+                    <td className="py-2 pr-3">
+                      <div className="font-medium">
+                        {request.profiles?.full_name || 'Unknown User'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {request.profiles?.email}
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <div className="font-medium">{request.food_hubs?.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {request.food_hubs?.suburb}, {request.food_hubs?.city}
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <div>{request.dietary_preferences}</div>
+                      {request.allergies && (
+                        <div className="text-xs text-red-600">Allergies: {request.allergies}</div>
+                      )}
+                      {request.notes && (
+                        <div className="text-xs text-gray-500">Notes: {request.notes}</div>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3">{request.preferred_window}</td>
+                    <td className="py-2 pr-3">{statusPill(request.status)}</td>
+                    <td className="py-2 pr-3">{fmtDate(request.created_at)}</td>
+                    <td className="py-2 pr-3">
+                      <div className="flex gap-1 flex-wrap">
+                        {request.status === 'pending' && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => updateStatus(request.id, 'approved')}
+                              disabled={processing === request.id}
+                              className="bg-emerald-600 hover:bg-emerald-700"
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => updateStatus(request.id, 'cancelled')}
+                              disabled={processing === request.id}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                        {request.status === 'approved' && (
+                          <Button
+                            size="sm"
+                            onClick={() => updateStatus(request.id, 'ready')}
+                            disabled={processing === request.id}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            Bag Ready
+                          </Button>
+                        )}
+                        {request.status === 'ready' && (
+                          <Button
+                            size="sm"
+                            onClick={() => updateStatus(request.id, 'completed')}
+                            disabled={processing === request.id}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            Completed
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
 function EditAnnouncement({
   a,
   onSave,
@@ -1100,9 +1821,11 @@ return (
     {tab === "overview" && <Overview />}
     {tab === "donations" && <DonationsTab />}
     {tab === "claims" && <ClaimsTab />}
+    {tab === "bag_requests" && <BagRequestsTab />}  {/* Add this line */}
     {tab === "users" && <UsersTab />}
     {tab === "food_hubs" && <FoodHubsTab />}
     {tab === "volunteer_tasks" && <TasksTab />}
+    {tab === "volunteer_verification" && <VerificationTab />} 
     {tab === "announcements" && <AnnouncementsTab />}
   </div>
 );

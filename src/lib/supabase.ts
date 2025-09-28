@@ -35,7 +35,7 @@ export interface Database {
           email: string;
           full_name: string;
           avatar_url: string | null;
-          role: 'donor' | 'recipient' | 'volunteer' | 'admin';
+           role: 'user' | 'admin' | 'donor' | 'recipient' | 'volunteer';
           phone: string | null;
           address: string | null;
           city: string;
@@ -46,24 +46,50 @@ export interface Database {
           is_active: boolean;
           created_at: string;
           updated_at: string;
+          is_verified_volunteer: boolean;
+          volunteer_role: string | null;
+preferred_location: string | null;
+volunteer_since: string | null;
+volunteer_active: boolean;
+user_id: string | null;
+volunteer_level: number;
+volunteer_xp: number;
+volunteer_streak: number;
+is_admin: boolean;
+volunteer_badges: string[];
+last_active_date: string | null;
+          
+
         };
-        Insert: {
-          id: string;
-          email: string;
-          full_name: string;
-          avatar_url?: string | null;
-          role?: 'donor' | 'recipient' | 'volunteer' | 'admin';
-          phone?: string | null;
-          address?: string | null;
-          city: string;
-          suburb?: string | null;
-          business_name?: string | null;
-          organization_type?: string | null;
-          verification_status?: 'pending' | 'verified' | 'rejected';
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
+Insert: {
+  id: string;
+  email: string;
+  full_name?: string;
+  avatar_url?: string | null;
+  role?: 'user' | 'admin' | 'donor' | 'recipient' | 'volunteer';
+  phone?: string | null;
+  address?: string | null;
+  city?: string;
+  suburb?: string | null;
+  business_name?: string | null;
+  organization_type?: string | null;
+  verification_status?: 'pending' | 'verified' | 'rejected';
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  volunteer_role?: string | null;
+  preferred_location?: string | null;
+  volunteer_since?: string | null;
+  volunteer_active?: boolean;
+  user_id?: string | null;
+  volunteer_level?: number;
+  volunteer_xp?: number;
+  volunteer_streak?: number;
+  is_admin?: boolean;
+  volunteer_badges?: string[];
+  last_active_date?: string | null;
+  is_verified_volunteer?: boolean;
+};
         Update: {
           id?: string;
           email?: string;
@@ -80,6 +106,7 @@ export interface Database {
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
+          is_verified_volunteer?: boolean;
         };
       };
       locations: {
@@ -112,70 +139,86 @@ export interface Database {
           coordinates?: unknown | null;
           is_active?: boolean;
           created_at?: string;
+          is_verified_volunteer?: boolean;
         };
       };
-      donations: {
-        Row: {
-          id: string;
-          donor_id: string;
-          title: string;
-          description: string | null;
-          food_type: string;
-          quantity: string;
-          expiry_date: string;
-          pickup_location: string;
-          city: string;
-          suburb: string | null;
-          contact_phone: string | null;
-          contact_email: string | null;
-          images: string[] | null;
-          status: 'available' | 'claimed' | 'expired' | 'cancelled';
-          ai_matched_recipients: string[] | null;
-          is_urgent: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          donor_id: string;
-          title: string;
-          description?: string | null;
-          food_type: string;
-          quantity: string;
-          expiry_date: string;
-          pickup_location: string;
-          city: string;
-          suburb?: string | null;
-          contact_phone?: string | null;
-          contact_email?: string | null;
-          images?: string[] | null;
-          status?: 'available' | 'claimed' | 'expired' | 'cancelled';
-          ai_matched_recipients?: string[] | null;
-          is_urgent?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          donor_id?: string;
-          title?: string;
-          description?: string | null;
-          food_type?: string;
-          quantity?: string;
-          expiry_date?: string;
-          pickup_location?: string;
-          city?: string;
-          suburb?: string | null;
-          contact_phone?: string | null;
-          contact_email?: string | null;
-          images?: string[] | null;
-          status?: 'available' | 'claimed' | 'expired' | 'cancelled';
-          ai_matched_recipients?: string[] | null;
-          is_urgent?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
+donations: {
+  Row: {
+    id: string;
+    donor_id: string;
+    title: string;
+    description: string | null;
+    food_type: string;
+    quantity: string;
+    expiry_date: string;
+    pickup_location: string;
+    city: string;
+    suburb: string | null;
+    contact_phone: string | null;
+    contact_email: string | null;
+    images: string[] | null;
+    status: 'available' | 'claimed' | 'expired' | 'cancelled';
+    ai_matched_recipients: string[] | null;
+    is_urgent: boolean;
+    created_at: string;
+    updated_at: string;
+    // ADD THESE MISSING FIELDS:
+    hub_id: string | null;
+    dropoff_time: string | null;
+    user_id: string | null;
+    best_before: string | null;
+  };
+  Insert: {
+    id?: string;
+    donor_id: string;
+    title: string;
+    description?: string | null;
+    food_type: string;
+    quantity: string;
+    expiry_date: string;
+    pickup_location: string;
+    city: string;
+    suburb?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
+    images?: string[] | null;
+    status?: 'available' | 'claimed' | 'expired' | 'cancelled';
+    ai_matched_recipients?: string[] | null;
+    is_urgent?: boolean;
+    created_at?: string;
+    updated_at?: string;
+    // ADD THESE MISSING FIELDS:
+    hub_id?: string | null;
+    dropoff_time?: string | null;
+    user_id?: string | null;
+    best_before?: string | null;
+  };
+  Update: {
+    id?: string;
+    donor_id?: string;
+    title?: string;
+    description?: string | null;
+    food_type?: string;
+    quantity?: string;
+    expiry_date?: string;
+    pickup_location?: string;
+    city?: string;
+    suburb?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
+    images?: string[] | null;
+    status?: 'available' | 'claimed' | 'expired' | 'cancelled';
+    ai_matched_recipients?: string[] | null;
+    is_urgent?: boolean;
+    created_at?: string;
+    updated_at?: string;
+    // ADD THESE MISSING FIELDS:
+    hub_id?: string | null;
+    dropoff_time?: string | null;
+    user_id?: string | null;
+    best_before?: string | null;
+  };
+};
       claims: {
         Row: {
           id: string;

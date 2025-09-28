@@ -61,113 +61,82 @@ export default function BagRequestForm() {
       .then(({ data }) => setHub((data as HubLite) || null));
   }, [hubId]);
 
-  const submit = async () => {
-    if (!user) {
-      alert("Please sign in to request a bag.");
-      return;
-    }
-    if (!hub) {
-      alert("Please pick a hub first.");
-      return;
-    }
-    if (!diet) {
-      alert("Please select a dietary preference.");
-      return;
-    }
-    if (diet === "Other" && !otherDiet.trim()) {
-      alert("Please specify your dietary requirements.");
-      return;
-    }
-    if (!pickupWindow) {
-      alert("Please select a pickup window.");
-      return;
-    }
-    if (!agreed) {
-      alert("Please agree to the hub rules.");
-      return;
-    }
+const submit = async () => {
+  if (!user) {
+    alert("Please sign in to request a bag.");
+    return;
+  }
+  if (!hub) {
+    alert("Please pick a hub first.");
+    return;
+  }
+  if (!diet) {
+    alert("Please select a dietary preference.");
+    return;
+  }
+  if (diet === "Other" && !otherDiet.trim()) {
+    alert("Please specify your dietary requirements.");
+    return;
+  }
+  if (!pickupWindow) {
+    alert("Please select a pickup window.");
+    return;
+  }
+  if (!agreed) {
+    alert("Please agree to the hub rules.");
+    return;
+  }
 
-    setSubmitting(true);
+  setSubmitting(true);
+  try {
+    const finalDiet = diet === "Other" ? otherDiet : diet;
+    
+    const insertPayload = {
+      user_id: user.id,
+      hub_id: hub.id,
+      dietary_preferences: finalDiet,
+      allergies: allergies || null,
+      notes: notes || null,
+      preferred_window: pickupWindow,
+      status: "pending" as const,
+    };
+
+    const { data: bagRequest, error } = await supabase
+      .from("bag_requests")
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Send email confirmation
     try {
-      const finalDiet = diet === "Other" ? otherDiet : diet;
-      
-      const insertPayload = {
-        user_id: user.id,
-        hub_id: hub.id,
-        dietary_preferences: finalDiet,
-        allergies: allergies || null,
-        notes: notes || null,
-        preferred_window: pickupWindow,
-        status: "pending" as const,
-      };
-
-      const { data: bagRequest, error } = await supabase
-        .from("bag_requests")
-        .insert(insertPayload)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Create notifications for hub administrators
-      try {
-        const { data: hubAdmins } = await supabase
-          .from("profiles")
-          .select("id")
-          .or("role.eq.admin,is_admin.eq.true");
-
-        if (hubAdmins?.length) {
-          const notifications = hubAdmins.map(admin => ({
-            user_id: admin.id,
-            type: "bag_request_created",
-            title: "New Bag Request",
-            message: `New bag request from ${user.email} at ${hub.name}`,
-            audience: "admin",
-            payload: {
-              request_id: bagRequest.id,
-              hub: {
-                name: hub.name,
-                city: hub.city,
-                suburb: hub.suburb
-              },
-              pickup_time: pickupWindow
-            }
-          }));
-          
-          await supabase.from("notifications").insert(notifications);
+      const { sendFoodBagRequestEmail } = await import("@/lib/emailService");
+      await sendFoodBagRequestEmail(
+        user.email!,
+        user.user_metadata?.full_name || user.email!.split('@')[0],
+        {
+          hub_name: hub.name,
+          hub_address: hub.address_line1 || '',
+          hub_city: hub.city,
+          hub_suburb: hub.suburb || '',
+          pickup_window: pickupWindow,
+          dietary_preferences: finalDiet,
+          allergies: allergies,
+          notes: notes
         }
-      } catch (notifError) {
-        console.error("Notification creation failed:", notifError);
-        // Don't fail the main request if notifications fail
-      }
-
-      // Optional email notification
-      try {
-        await supabase.functions.invoke("send-mail", {
-          body: {
-            to: user.email,
-            subject: "Your NourishSA bag request",
-            type: "bag-request",
-            data: {
-              hub: { name: hub.name, suburb: hub.suburb, city: hub.city },
-              window: pickupWindow,
-              diet: finalDiet,
-              allergies,
-              notes,
-            },
-          },
-        });
-      } catch {
-        // ignore if function not set up
-      }
-
-      setOk(true);
-    } catch (e: any) {
-      alert(e.message || "Could not submit request. Please try again.");
-    } finally {
-      setSubmitting(false);
+      );
+    } catch (emailError) {
+      console.error("Email send failed:", emailError);
     }
-  };
+
+    setOk(true);
+  } catch (e: any) {
+    alert(e.message || "Could not submit request. Please try again.");
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   if (!hubId) {
     return (
@@ -185,33 +154,38 @@ export default function BagRequestForm() {
     );
   }
 
-  if (ok) {
-    return (
-      <div className="max-w-2xl mx-auto px-6 pt-24 pb-16">
-        <Card className="shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-emerald-700">
-              <CheckCircle2 className="w-6 h-6" />
-              Request received — thank you!
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+if (ok) {
+  return (
+    <div className="max-w-2xl mx-auto px-6 pt-24 pb-16">
+      <Card className="shadow-xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-emerald-700">
+            <CheckCircle2 className="w-6 h-6" />
+            Request received — thank you!
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p>
+            We've logged your preferences and pickup window for{" "}
+            <strong>{hub?.name}</strong>
+            {hub?.suburb ? ` • ${hub?.suburb}` : ""} • {hub?.city}.
+          </p>
+          {pickupWindow && (
             <p>
-              We've logged your preferences and pickup window for{" "}
-              <strong>{hub?.name}</strong>
-              {hub?.suburb ? ` • ${hub?.suburb}` : ""} • {hub?.city}.
+              <span className="font-medium">Pickup window:</span> {pickupWindow}
             </p>
-            {pickupWindow && (
-              <p>
-                <span className="font-medium">Pickup window:</span> {pickupWindow}
-              </p>
-            )}
-            <Button onClick={() => navigate("/hubs?mode=get-bag")}>Back to hubs</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+          )}
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
+            <p className="text-sm text-blue-800">
+              <strong>Check your email!</strong> We've sent you a confirmation message with all your bag request details and pickup instructions.
+            </p>
+          </div>
+          <Button onClick={() => navigate("/hubs?mode=get-bag")}>Back to hubs</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
   return (
     <div className="max-w-3xl mx-auto px-6 pt-24 pb-16">

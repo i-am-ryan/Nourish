@@ -37,6 +37,7 @@ export default function HubSubmitModal({ open, onClose, onCreated }: Props) {
     });
   };
 
+// In the submit function, remove the created_by field completely:
 const submit = async () => {
   if (!form.name.trim() || !form.city.trim()) {
     alert("Please fill in at least Name and City.");
@@ -47,7 +48,6 @@ const submit = async () => {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) throw new Error("Sign in required");
 
-    // Upload photo if provided
     let photo_url: string | null = null;
     if (photo) {
       const path = `hub-submissions/${auth.user.id}/${Date.now()}-${photo.name}`;
@@ -57,7 +57,7 @@ const submit = async () => {
       photo_url = data.publicUrl;
     }
 
-    // Don't send created_by - it's handled by the default
+    // DO NOT include created_by - let the database default handle it
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
@@ -65,7 +65,7 @@ const submit = async () => {
       email: form.email || null,
       website: form.website || null,
       city: form.city.trim(),
-      suburb: form.suburb || null,
+      suburb: form.suburb.trim() || null,
       address_line1: form.address_line1 || null,
       latitude: form.latitude ? Number(form.latitude) : null,
       longitude: form.longitude ? Number(form.longitude) : null,

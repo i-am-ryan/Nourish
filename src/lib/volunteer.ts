@@ -278,13 +278,66 @@ export async function completeTask(taskId: string) {
   const uid = await getUserId();
   if (!uid) return { error: new Error("Not authenticated") };
 
-  const { data, error } = await supabase.rpc('complete_volunteer_task', {
-    task_id: taskId,
-    user_id: uid
-  });
+  console.log('Starting task completion for:', taskId, 'user:', uid);
 
-  if (error) return { error };
-  return { data, error: null };
+  try {
+    // First, get task details before completion
+    const { data: taskDetails, error: taskError } = await supabase
+      .from("volunteer_tasks")
+      .select("title, task_type, description")
+      .eq("id", taskId)
+      .single();
+
+    if (taskError) {
+      console.error('Error fetching task details:', taskError);
+    } else {
+      console.log('Task details found:', taskDetails);
+    }
+
+    // Complete the task using RPC
+    const { data, error } = await supabase.rpc('complete_volunteer_task', {
+      task_id: taskId,
+      user_id: uid
+    });
+
+    if (error) {
+      console.error('RPC completion error:', error);
+      return { error };
+    }
+
+    console.log('Task completion RPC successful:', data);
+
+    // Send completion email notification
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", uid)
+        .single();
+      
+      console.log('Profile found for email:', profile);
+      
+      if (profile?.email && taskDetails) {
+        console.log('Sending completion email...');
+        const { sendTaskCompletedNotification } = await import("@/lib/emailService");
+        await sendTaskCompletedNotification(
+          profile.email,
+          profile.full_name || 'Volunteer',
+          taskDetails
+        );
+        console.log('Task completed email sent successfully');
+      } else {
+        console.log('Missing email or task details:', { email: profile?.email, taskDetails });
+      }
+    } catch (emailError) {
+      console.error('Failed to send task completed email notification:', emailError);
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Complete task error:', error);
+    return { error };
+  }
 }
 
 export async function acceptTask(taskId: string) {
@@ -322,7 +375,27 @@ export async function acceptTask(taskId: string) {
 
     // Award points for accepting
     await awardPoints(uid, 50, 'task_accepted');
-    
+
+    // ADD EMAIL NOTIFICATION HERE
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", uid)
+        .single();
+      
+      if (profile?.email) {
+        const { sendTaskAcceptedNotification } = await import("@/lib/emailService");
+        await sendTaskAcceptedNotification(
+          profile.email,
+          profile.full_name || 'Volunteer',
+          data[0]  // This is the key fix - data[0] not just data
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send email notification:', emailError);
+    }
+
     return { data: data[0], error: null };
 
   } catch (error) {
@@ -614,20 +687,34 @@ export async function listStories() {
   const { data, error } = await supabase
     .from("community_stories")
     .select(`
-      id, user_id, story_text, image_url, is_featured, created_at,
-      profiles(full_name),
-      story_likes(count),
-      story_comments(count)
+      id, 
+      user_id, 
+      story_text, 
+      image_url, 
+      is_featured, 
+      created_at,
+      likes_count,
+      comments_count,
+      profiles!community_stories_user_id_fkey(full_name)
     `)
     .order("is_featured", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (error) return { data: [], error };
+  if (error) {
+    console.error('Error fetching stories:', error);
+    return { data: [], error };
+  }
 
   const mapped = (data || []).map((row: any) => ({
-    ...row,
-    likes_count: (row.story_likes as DbLikeCount)?.[0]?.count ?? 0,
-    comments_count: (row.story_comments as DbCommentCount)?.[0]?.count ?? 0,
+    id: row.id,
+    user_id: row.user_id,
+    story_text: row.story_text,
+    image_url: row.image_url,
+    is_featured: row.is_featured,
+    created_at: row.created_at,
+    likes_count: row.likes_count || 0,
+    comments_count: row.comments_count || 0,
+    profiles: row.profiles || null
   }));
 
   return { data: mapped, error: null };
@@ -652,12 +739,43 @@ export async function uploadStory(file: File | null, caption: string) {
       image_url = pub?.publicUrl || null;
     }
 
+    // Ensure user has a profile before creating story
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("id", uid)
+      .single();
+
+    if (profileError || !profile) {
+      const { data: authUser } = await supabase.auth.getUser();
+      const email = authUser.user?.email || '';
+      const displayName = authUser.user?.user_metadata?.full_name || 
+                          authUser.user?.user_metadata?.name || 
+                          email.split('@')[0];
+
+      await supabase
+        .from("profiles")
+        .upsert({
+          id: uid,
+          email: email,
+          full_name: displayName
+        });
+    }
+
     const { error: insErr } = await supabase
       .from("community_stories")
-      .insert({ user_id: uid, story_text: caption || "", image_url, is_featured: false });
+      .insert({ 
+        user_id: uid, 
+        story_text: caption || "", 
+        image_url, 
+        is_featured: false,
+        likes_count: 0,
+        comments_count: 0
+      });
 
     return { error: insErr };
   } catch (e) {
+    console.error('Error uploading story:', e);
     return { error: e as any };
   }
 }
@@ -686,22 +804,116 @@ export async function addStoryComment(story_id: string, text: string) {
   const uid = await getUserId();
   if (!uid) return { error: new Error("No user") };
 
-  const { error } = await supabase
-    .from("story_comments")
-    .insert({ user_id: uid, story_id, comment_text: text });
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("id", uid)
+      .single();
 
-  return { error };
+    if (!profile) {
+      const { data: authUser } = await supabase.auth.getUser();
+      const email = authUser.user?.email || '';
+      const displayName = authUser.user?.user_metadata?.full_name || 
+                          authUser.user?.user_metadata?.name || 
+                          email.split('@')[0];
+
+      await supabase
+        .from("profiles")
+        .upsert({
+          id: uid,
+          email: email,
+          full_name: displayName
+        });
+    }
+
+    const { error } = await supabase
+      .from("story_comments")
+      .insert({ 
+        user_id: uid, 
+        story_id, 
+        comment_text: text 
+      });
+
+    return { error };
+  } catch (e) {
+    console.error('Error adding comment:', e);
+    return { error: e as any };
+  }
+}
+
+export async function deleteStoryComment(commentId: string) {
+  const uid = await getUserId();
+  if (!uid) return { error: new Error("No user") };
+
+  try {
+    const { error } = await supabase
+      .from("story_comments")
+      .delete()
+      .eq("id", commentId)
+      .eq("user_id", uid); // Only allow deleting own comments
+
+    return { error };
+  } catch (e) {
+    console.error('Error deleting comment:', e);
+    return { error: e as any };
+  }
 }
 
 export async function listStoryComments(story_id: string) {
+  console.log('Fetching comments for story:', story_id);
+  
+  // Check auth first
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  console.log('Auth user for comments query:', currentUser?.id);
+
+  // Use the simplest possible query
   const { data, error } = await supabase
     .from("story_comments")
-    .select("id, comment_text, created_at, profiles(full_name)")
+    .select("id, comment_text, created_at, user_id")
     .eq("story_id", story_id)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
-  return { data: (data || []) as any[], error };
+  console.log('Comments query result:', { data, error });
+
+  if (error) {
+    console.error('Error fetching comments:', error);
+    return { data: [], error };
+  }
+
+  if (!data || data.length === 0) {
+    console.log('No comments found for story:', story_id);
+    return { data: [], error: null };
+  }
+
+  // Get profiles separately with a simple query
+  const userIds = [...new Set(data.map(c => c.user_id).filter(Boolean))];
+  console.log('User IDs for profiles:', userIds);
+
+  const { data: profiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", userIds);
+
+  console.log('Profiles result:', { profiles, profileError });
+
+  // Map the results
+  const mapped = data.map((comment: any) => {
+    const profile = profiles?.find(p => p.id === comment.user_id);
+    return {
+      id: comment.id,
+      comment_text: comment.comment_text,
+      created_at: comment.created_at,
+      user_id: comment.user_id,
+      profiles: profile ? { full_name: profile.full_name } : null
+    };
+  });
+
+  console.log('Final mapped comments:', mapped);
+  return { data: mapped, error: null };
 }
+
+
 
 /** Seed 3 featured stories once with stable IDs (won't duplicate). */
 export async function seedMockStoriesIfEmpty() {

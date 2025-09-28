@@ -5,6 +5,8 @@ import type { VolunteerTask } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import { sendNewTaskNotification } from "@/lib/emailService";
 
 type NewTask = Partial<VolunteerTask>;
 
@@ -71,44 +73,93 @@ export default function AdminVolunteerTasks() {
   }, []);
 
   // ---------------- actions ----------------
-  const createTask = async () => {
-    if (!form.title?.trim() || !form.task_type || !form.priority) {
-      toast({
-        title: "Missing fields",
-        description: "Title, type and priority are required.",
-        variant: "destructive",
-      });
-      return;
+ const createTask = async () => {
+  if (!form.title?.trim() || !form.task_type || !form.priority) {
+    toast({
+      title: "Missing fields",
+      description: "Title, type and priority are required.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setCreating(true);
+  try {
+    // Create the task first
+    const { data, error } = await V.adminCreateTask({
+      ...form,
+      status: "open",
+    });
+    if (error) throw error;
+
+    console.log('Task created successfully:', data);
+
+    // Send email notifications to all active volunteers
+    try {
+      const { data: volunteers, error: volunteerError } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+.eq("is_active", true)
+.not("email", "is", null);
+
+      if (volunteerError) {
+        console.error('Error fetching volunteers:', volunteerError);
+      } else {
+        console.log('Found volunteers for notifications:', volunteers?.length || 0);
+        
+        if (volunteers && volunteers.length > 0) {
+          const emailPromises = volunteers.map(volunteer => {
+            console.log('Sending email notification to:', volunteer.email);
+            return sendNewTaskNotification(
+              volunteer.email,
+              volunteer.full_name || 'Volunteer',
+              {
+                title: form.title?.trim() || '',
+                description: form.description?.trim() || '',
+                task_type: form.task_type || 'delivery',
+                city: form.city?.trim() || '',
+                suburb: form.suburb?.trim() || '',
+                scheduled_date: form.scheduled_date,
+                priority: form.priority || 'medium'
+              }
+            );
+          });
+          
+          const emailResults = await Promise.allSettled(emailPromises);
+          
+          // Log results
+          const successful = emailResults.filter(result => result.status === 'fulfilled').length;
+          const failed = emailResults.filter(result => result.status === 'rejected').length;
+          
+          console.log(`Email notifications: ${successful} sent successfully, ${failed} failed`);
+        }
+      }
+    } catch (notifError) {
+      console.error("Failed to send email notifications:", notifError);
+      // Don't throw - task creation was successful, just notification failed
     }
 
-    setCreating(true);
-    try {
-      const { data, error } = await V.adminCreateTask({
-        ...form,
-        status: "open",
-      });
-      if (error) throw error;
-      toast({ title: "Task created" });
-      setForm({
-        title: "",
-        description: "",
-        city: "",
-        suburb: "",
-        task_type: "delivery",
-        priority: "medium",
-        scheduled_date: null,
-      });
-      setTasks((prev) => [data as VolunteerTask, ...prev]);
-    } catch (e: any) {
-      toast({
-        title: "Create failed",
-        description: e?.message ?? "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setCreating(false);
-    }
-  };
+    toast({ title: "Task created and notifications sent" });
+    setForm({
+      title: "",
+      description: "",
+      city: "",
+      suburb: "",
+      task_type: "delivery",
+      priority: "medium",
+      scheduled_date: null,
+    });
+    setTasks((prev) => [data as VolunteerTask, ...prev]);
+  } catch (e: any) {
+    toast({
+      title: "Create failed",
+      description: e?.message ?? "Please try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setCreating(false);
+  }
+};
 
   const updateStatus = async (id: string, status: (typeof STATUSES)[number]) => {
     // optimistic
