@@ -141,7 +141,7 @@ export default function EmailConfirmation() {
     // error
     return (
       <div className="text-center">
-        <XCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+        <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           Please sign in
         </h2>

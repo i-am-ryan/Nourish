@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { MapPin, Upload, LocateFixed } from "lucide-react";
+import { MapPin, Upload, LocateFixed, CheckCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type Props = { open: boolean; onClose: () => void; onCreated?: () => void };
@@ -25,6 +25,7 @@ export default function HubSubmitModal({ open, onClose, onCreated }: Props) {
   });
   const [photo, setPhoto] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const getCoords = () => {
     if (!navigator.geolocation) return;
@@ -75,16 +76,24 @@ const submit = async () => {
     const { error } = await supabase.from("hub_submissions").insert(payload);
     if (error) throw error;
 
-    onCreated?.();
-    onClose();
+    // Show success message
+    setShowSuccess(true);
     
-    // Reset form
-    setForm({
-      name: "", description: "", phone: "", email: "", website: "",
-      city: "Johannesburg", suburb: "", address_line1: "", postal_code: "",
-      latitude: "", longitude: ""
-    });
-    setPhoto(null);
+    // Auto-hide success message and close modal after 2 seconds
+    setTimeout(() => {
+      setShowSuccess(false);
+      onCreated?.();
+      onClose();
+      
+      // Reset form
+      setForm({
+        name: "", description: "", phone: "", email: "", website: "",
+        city: "Johannesburg", suburb: "", address_line1: "", postal_code: "",
+        latitude: "", longitude: ""
+      });
+      setPhoto(null);
+    }, 2000);
+
   } catch (e: any) {
     console.error(e);
     alert(e.message || "Failed to submit hub. Please try again.");
@@ -96,41 +105,51 @@ const submit = async () => {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl rounded-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Suggest a Food Hub</DialogTitle>
-        </DialogHeader>
+        {showSuccess ? (
+          <div className="flex flex-col items-center justify-center py-8 px-4">
+            <CheckCircle className="w-16 h-16 text-emerald-600 mb-4" />
+            <h3 className="text-xl font-semibold text-emerald-800 mb-2">Success!</h3>
+            <p className="text-gray-600 text-center">Your food hub suggestion has been submitted successfully. Thank you for contributing!</p>
+          </div>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-2xl">Suggest a Food Hub</DialogTitle>
+            </DialogHeader>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <Input placeholder="Hub name *" value={form.name} onChange={(e)=>setForm({...form, name:e.target.value})} />
-          <Input placeholder="Phone" value={form.phone} onChange={(e)=>setForm({...form, phone:e.target.value})} />
-          <Input placeholder="Email" value={form.email} onChange={(e)=>setForm({...form, email:e.target.value})} />
-          <Input placeholder="Website" value={form.website} onChange={(e)=>setForm({...form, website:e.target.value})} />
-          <Input placeholder="City *" value={form.city} onChange={(e)=>setForm({...form, city:e.target.value})} />
-          <Input placeholder="Suburb" value={form.suburb} onChange={(e)=>setForm({...form, suburb:e.target.value})} />
-          <Input placeholder="Address / landmark" value={form.address_line1} onChange={(e)=>setForm({...form, address_line1:e.target.value})} />
-          <Input placeholder="Postal code (UI only)" value={form.postal_code} onChange={(e)=>setForm({...form, postal_code:e.target.value})} />
-          <div className="flex gap-2">
-            <Input placeholder="Latitude" value={form.latitude} onChange={(e)=>setForm({...form, latitude:e.target.value})} />
-            <Input placeholder="Longitude" value={form.longitude} onChange={(e)=>setForm({...form, longitude:e.target.value})} />
-            <Button type="button" variant="outline" onClick={getCoords} title="Use my location">
-              <LocateFixed className="w-4 h-4" />
-            </Button>
-          </div>
-          <div className="flex items-center gap-3">
-            <Input type="file" accept="image/*" onChange={(e)=>setPhoto(e.target.files?.[0] ?? null)} />
-            <Upload className="w-4 h-4 text-gray-500" />
-          </div>
-          <div className="md:col-span-2">
-            <Textarea placeholder="Short description" value={form.description} onChange={(e)=>setForm({...form, description:e.target.value})} />
-          </div>
-        </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Input placeholder="Hub name *" value={form.name} onChange={(e)=>setForm({...form, name:e.target.value})} />
+              <Input placeholder="Phone" value={form.phone} onChange={(e)=>setForm({...form, phone:e.target.value})} />
+              <Input placeholder="Email" value={form.email} onChange={(e)=>setForm({...form, email:e.target.value})} />
+              <Input placeholder="Website" value={form.website} onChange={(e)=>setForm({...form, website:e.target.value})} />
+              <Input placeholder="City *" value={form.city} onChange={(e)=>setForm({...form, city:e.target.value})} />
+              <Input placeholder="Suburb" value={form.suburb} onChange={(e)=>setForm({...form, suburb:e.target.value})} />
+              <Input placeholder="Address / landmark" value={form.address_line1} onChange={(e)=>setForm({...form, address_line1:e.target.value})} />
+              <Input placeholder="Postal code (UI only)" value={form.postal_code} onChange={(e)=>setForm({...form, postal_code:e.target.value})} />
+              <div className="flex gap-2">
+                <Input placeholder="Latitude" value={form.latitude} onChange={(e)=>setForm({...form, latitude:e.target.value})} />
+                <Input placeholder="Longitude" value={form.longitude} onChange={(e)=>setForm({...form, longitude:e.target.value})} />
+                <Button type="button" variant="outline" onClick={getCoords} title="Use my location">
+                  <LocateFixed className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-3">
+                <Input type="file" accept="image/*" onChange={(e)=>setPhoto(e.target.files?.[0] ?? null)} />
+                <Upload className="w-4 h-4 text-gray-500" />
+              </div>
+              <div className="md:col-span-2">
+                <Textarea placeholder="Short description" value={form.description} onChange={(e)=>setForm({...form, description:e.target.value})} />
+              </div>
+            </div>
 
-        <div className="flex justify-end gap-3 pt-2">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-            <MapPin className="w-4 h-4 mr-2" /> {saving ? "Submitting…" : "Submit"}
-          </Button>
-        </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={submit} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                <MapPin className="w-4 h-4 mr-2" /> {saving ? "Submitting…" : "Submit"}
+              </Button>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

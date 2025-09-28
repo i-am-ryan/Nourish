@@ -3,6 +3,9 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { sendVerificationApprovedNotification } from "@/lib/emailService";
 import { Button } from "@/components/ui/button";
+// wherever you're importing it
+import AdminHubSubmissions from "@/pages/AdminHubSubmissions";
+
 import {
   Card,
   CardContent,
@@ -113,6 +116,7 @@ type TabKey =
   | "volunteer_tasks"
   | "volunteer_verification"
    | "bag_requests"
+   | "hub_submissions"
   | "food_hubs";
 
 /* ------------------------------------------------------------------ */
@@ -145,7 +149,7 @@ export default function AdminDashboard() {
   const initialTab = useMemo(() => {
     const qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
     const t = (qs?.get("tab") || "overview") as TabKey;
-    const ok = ["overview","donations","claims","bag_requests","announcements","users","volunteer_tasks","volunteer_verification","food_hubs"].includes(t);
+    const ok = ["overview","donations","claims","bag_requests","announcements","users","volunteer_tasks","volunteer_verification","food_hubs","hub_submissions"].includes(t);
     return (ok ? t : "overview") as TabKey;
   }, []);
 
@@ -164,7 +168,8 @@ export default function AdminDashboard() {
   const [hubs, setHubs] = useState<FoodHub[]>([]);
   const [tasks, setTasks] = useState<VolunteerTask[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-
+  
+const [hubSubmissions, setHubSubmissions] = useState<any[]>([]);
   const [totalDonations, setTotalDonations] = useState(0);
   const [activeDonations, setActiveDonations] = useState(0);
   const [totalClaims, setTotalClaims] = useState(0);
@@ -175,15 +180,16 @@ export default function AdminDashboard() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [{ data: d1 }, { data: c1 }, { data: u1 }, { data: h1 }, { data: t1 }, { data: a1 }] =
-        await Promise.all([
-          supabase.from("donations").select("*").order("created_at", { ascending: false }).limit(50),
-          supabase.from("claims").select("*").order("created_at", { ascending: false }).limit(50),
-          supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
-          supabase.from("food_hubs").select("*").order("created_at", { ascending: false }).limit(100),
-          supabase.from("volunteer_tasks").select("*").order("created_at", { ascending: false }).limit(100),
-          supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(50),
-        ]);
+const [{ data: d1 }, { data: c1 }, { data: u1 }, { data: h1 }, { data: t1 }, { data: a1 }, { data: hs1 }] =
+  await Promise.all([
+    supabase.from("donations").select("*").order("created_at", { ascending: false }).limit(50),
+    supabase.from("claims").select("*").order("created_at", { ascending: false }).limit(50),
+    supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
+    supabase.from("food_hubs").select("*").order("created_at", { ascending: false }).limit(100),
+    supabase.from("volunteer_tasks").select("*").order("created_at", { ascending: false }).limit(100),
+    supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(50),
+    supabase.from("hub_submissions").select("*").order("created_at", { ascending: false }).limit(100), // ADD THIS LINE
+  ]);
 
       setDonations((d1 as any[])?.map((r) => ({ id: String(r.id), title: r.title, status: r.status, created_at: r.created_at })) || []);
       setClaims((c1 as any[])?.map((r) => ({ id: String(r.id), status: r.status, created_at: r.created_at })) || []);
@@ -199,6 +205,26 @@ export default function AdminDashboard() {
       setHubs((h1 as any[])?.map((r) => ({ id: String(r.id), name: r.name, city: r.city, suburb: r.suburb, verified: r.verified })) || []);
       setTasks((t1 as any[])?.map((r) => ({ id: String(r.id), title: r.title, status: r.status, due_date: r.due_date ?? r.scheduled_date, created_at: r.created_at })) || []);
       setAnnouncements((a1 as any[])?.map((r) => ({ id: String(r.id), title: r.title, content: r.content, type: r.type, target_audience: r.target_audience, created_at: r.created_at })) || []);
+      setHubSubmissions((hs1 as any[])?.map((r) => ({ 
+  id: String(r.id), 
+  name: r.name, 
+  city: r.city, 
+  suburb: r.suburb, 
+  status: r.status, 
+  created_at: r.created_at,
+  created_by: r.created_by,
+  description: r.description,
+  phone: r.phone,
+  email: r.email,
+  website: r.website,
+  address_line1: r.address_line1,
+  latitude: r.latitude,
+  longitude: r.longitude,
+  photo_url: r.photo_url,
+  admin_notes: r.admin_notes,
+  reviewed_by: r.reviewed_by,
+  reviewed_at: r.reviewed_at
+})) || []);
 
       const [
         { count: dCount },
@@ -249,6 +275,7 @@ export default function AdminDashboard() {
       { key: "volunteer_tasks", label: "Volunteer Tasks", Icon: IcoCheck },
       { key: "volunteer_verification", label: "Volunteer Verification", Icon: IcoCheck },
       { key: "food_hubs", label: "Food Hubs", Icon: IcoPin },
+      { key: "hub_submissions", label: "Hub Submissions", Icon: IcoPin },
     ];
     return (
       <div className="flex flex-wrap gap-2 mb-4">
@@ -1763,6 +1790,9 @@ const loadRequests = async () => {
   );
 }
 
+function HubSubmissionsTab() {
+  return <AdminHubSubmissions />;
+}
 
 function EditAnnouncement({
   a,
@@ -1827,6 +1857,7 @@ return (
     {tab === "volunteer_tasks" && <TasksTab />}
     {tab === "volunteer_verification" && <VerificationTab />} 
     {tab === "announcements" && <AnnouncementsTab />}
+    {tab === "hub_submissions" && <HubSubmissionsTab />}
   </div>
 );
 }
