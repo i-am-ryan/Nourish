@@ -380,9 +380,9 @@ if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
                 <Scan className="w-6 h-6" />
               </div>
               <div>
-                <CardTitle className="text-2xl">AI Food Quality Assessment</CardTitle>
+                <CardTitle className="text-2xl">AI Food Information Assessment</CardTitle>
                 <p className="text-white/80 text-sm">
-                  Upload a photo to check food safety and quality
+                  Upload a photo to check food Details,Safety, Quality etc.
                 </p>
               </div>
             </div>
