@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 
 const HERO_IMG = "/lovable-uploads/michael-ali-Glt7d_fofLQ-unsplash.jpg";
 const CARD_BG = "/lovable-uploads/c84c72dc-5e01-4b9e-a7c8-fcc3dbfcf5e6.png";
+const MONEY_CARD_BG = "/lovable-uploads/bcdd34cf-b94b-43c0-b644-ce63b929d5c4.png";
 
 export default function Donate() {
   const [active, setActive] = useState<"none" | "donate">("none");
@@ -52,8 +53,8 @@ export default function Donate() {
     setIsProcessing(true);
 
     try {
-      // Call Vercel API Function
-      const response = await fetch('/api/create-checkout', {
+      // Call your backend server (we'll deploy this to Render)
+      const response = await fetch('https://nourish-payment.onrender.com/api/create-checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -174,7 +175,7 @@ export default function Donate() {
               >
                 <div
                   className="absolute inset-0 bg-cover bg-center"
-                  style={{ backgroundImage: `url('${CARD_BG}')` }}
+                  style={{ backgroundImage: `url('${MONEY_CARD_BG}')` }}
                 />
                 <div className="absolute inset-0 bg-teal-700/80 group-hover:bg-teal-700/70 transition-colors" />
                 <div className="absolute inset-0 backdrop-blur-[1px]" />
