@@ -19,6 +19,7 @@ export default function Donate() {
     firstName: '',
     lastName: '',
     email: '',
+    cardHolderName: '',
     cardNumber: '',
     expiryDate: '',
     cvv: '',
@@ -49,8 +50,27 @@ export default function Donate() {
   };
 
   const handlePaymentSubmit = () => {
-    if (!donationAmount || !formData.firstName || !formData.lastName || !formData.email || !formData.cardNumber || !formData.expiryDate || !formData.cvv) {
+    if (!donationAmount || !formData.firstName || !formData.lastName || !formData.email || !formData.cardHolderName || !formData.cardNumber || !formData.expiryDate || !formData.cvv) {
       alert('Please fill in all required fields');
+      return;
+    }
+
+    // Validate card number length (remove spaces)
+    const cleanCardNumber = formData.cardNumber.replace(/\s/g, '');
+    if (cleanCardNumber.length !== 16) {
+      alert('Please enter a valid 16-digit card number');
+      return;
+    }
+
+    // Validate expiry format
+    if (!formData.expiryDate.match(/^\d{2}\/\d{2}$/)) {
+      alert('Please enter expiry date in MM/YY format');
+      return;
+    }
+
+    // Validate CVV
+    if (formData.cvv.length !== 3) {
+      alert('Please enter a valid 3-digit CVV');
       return;
     }
 
@@ -70,6 +90,7 @@ export default function Donate() {
           firstName: '', 
           lastName: '', 
           email: '', 
+          cardHolderName: '',
           cardNumber: '', 
           expiryDate: '', 
           cvv: '' 
@@ -350,64 +371,118 @@ export default function Donate() {
 
                 {/* Payment Details */}
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-700">Payment Details</h3>
+                  <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <rect x="2" y="5" width="20" height="14" rx="2" strokeWidth="2"/>
+                      <path d="M2 10h20" strokeWidth="2"/>
+                    </svg>
+                    Card Details
+                  </h3>
+                  
+                  {/* Card Holder Name */}
                   <div>
+                    <label className="block text-xs text-gray-600 mb-1">Cardholder Name</label>
+                    <input
+                      type="text"
+                      name="cardHolderName"
+                      placeholder="JOHN DOE"
+                      required
+                      value={formData.cardHolderName}
+                      onChange={(e) => {
+                        const value = e.target.value.toUpperCase();
+                        setFormData({ ...formData, cardHolderName: value });
+                      }}
+                      disabled={isProcessing}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 uppercase"
+                    />
+                  </div>
+
+                  {/* Card Number */}
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Card Number</label>
                     <input
                       type="text"
                       name="cardNumber"
-                      placeholder="Card Number"
+                      placeholder="1234 5678 9012 3456"
                       maxLength={19}
                       required
                       value={formData.cardNumber}
                       onChange={(e) => {
-                        const value = e.target.value.replace(/\s/g, '');
+                        const value = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
                         const formatted = value.match(/.{1,4}/g)?.join(' ') || value;
-                        handleInputChange({ ...e, target: { ...e.target, value: formatted } });
+                        setFormData({ ...formData, cardNumber: formatted });
                       }}
                       disabled={isProcessing}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 font-mono"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 font-mono tracking-wider"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Test: 4242 4242 4242 4242</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <svg className="w-8 h-5" viewBox="0 0 48 32" fill="none">
+                        <rect width="48" height="32" rx="4" fill="#1A1F71"/>
+                        <circle cx="18" cy="16" r="9" fill="#EB001B"/>
+                        <circle cx="30" cy="16" r="9" fill="#F79E1B"/>
+                      </svg>
+                      <svg className="w-10 h-6" viewBox="0 0 48 32" fill="none">
+                        <rect width="48" height="32" rx="4" fill="#0066B2"/>
+                        <path d="M27 8L21 24M30 8L24 24M33 8L27 24" stroke="white" strokeWidth="2"/>
+                      </svg>
+                      <span className="text-xs text-gray-500">Test: 4242 4242 4242 4242</span>
+                    </div>
                   </div>
+
+                  {/* Expiry & CVV */}
                   <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      name="expiryDate"
-                      placeholder="MM/YY"
-                      maxLength={5}
-                      required
-                      value={formData.expiryDate}
-                      onChange={(e) => {
-                        let value = e.target.value.replace(/\D/g, '');
-                        if (value.length >= 2) {
-                          value = value.slice(0, 2) + '/' + value.slice(2, 4);
-                        }
-                        handleInputChange({ ...e, target: { ...e.target, value } });
-                      }}
-                      disabled={isProcessing}
-                      className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 font-mono"
-                    />
-                    <input
-                      type="text"
-                      name="cvv"
-                      placeholder="CVV"
-                      maxLength={3}
-                      required
-                      value={formData.cvv}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '');
-                        handleInputChange({ ...e, target: { ...e.target, value } });
-                      }}
-                      disabled={isProcessing}
-                      className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 font-mono"
-                    />
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Expiry Date</label>
+                      <input
+                        type="text"
+                        name="expiryDate"
+                        placeholder="MM/YY"
+                        maxLength={5}
+                        required
+                        value={formData.expiryDate}
+                        onChange={(e) => {
+                          let value = e.target.value.replace(/\D/g, '');
+                          if (value.length >= 2) {
+                            value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                          }
+                          setFormData({ ...formData, expiryDate: value });
+                        }}
+                        disabled={isProcessing}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">CVV</label>
+                      <input
+                        type="password"
+                        name="cvv"
+                        placeholder="123"
+                        maxLength={3}
+                        required
+                        value={formData.cvv}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '');
+                          setFormData({ ...formData, cvv: value });
+                        }}
+                        disabled={isProcessing}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 font-mono text-center"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Security Badge */}
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                    <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                    </svg>
+                    <span className="text-xs text-gray-600">Your payment information is secure and encrypted</span>
                   </div>
                 </div>
 
                 {/* Submit Button */}
                 <button
                   onClick={handlePaymentSubmit}
-                  disabled={!donationAmount || parseFloat(donationAmount) < 10 || !formData.firstName || !formData.lastName || !formData.email || !formData.cardNumber || !formData.expiryDate || !formData.cvv || isProcessing}
+                  disabled={!donationAmount || parseFloat(donationAmount) < 10 || !formData.firstName || !formData.lastName || !formData.email || !formData.cardHolderName || !formData.cardNumber || !formData.expiryDate || !formData.cvv || isProcessing}
                   className="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 rounded-lg font-bold text-lg hover:from-teal-700 hover:to-teal-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (
