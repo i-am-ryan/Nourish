@@ -44,7 +44,7 @@ export default function Donate() {
     });
   };
 
-  const handlePaymentSubmit = async () => {
+  const handlePaymentSubmit = () => {
     if (!donationAmount || !formData.firstName || !formData.lastName || !formData.email) {
       alert('Please fill in all required fields');
       return;
@@ -52,34 +52,20 @@ export default function Donate() {
 
     setIsProcessing(true);
 
-    try {
-      // Call your backend server (we'll deploy this to Render)
-      const response = await fetch('https://nourish-payment.onrender.com/api/create-checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: Math.round(parseFloat(donationAmount) * 100), // Convert to cents
-          currency: 'zar',
-          donorName: `${formData.firstName} ${formData.lastName}`,
-          donorEmail: formData.email,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.url) {
-        // Redirect to Stripe Checkout
-        window.location.href = data.url;
-      } else {
-        throw new Error(data.error || 'Failed to create checkout session');
-      }
-    } catch (error) {
-      console.error('Payment error:', error);
-      alert('Failed to process payment. Please try again.');
+    // Simulate realistic payment processing
+    setTimeout(() => {
+      setShowPaymentModal(false);
       setIsProcessing(false);
-    }
+      
+      // Show success message
+      alert(`✅ Thank you ${formData.firstName}!\n\nYour donation of R${donationAmount} has been processed successfully.\n\nA confirmation email will be sent to ${formData.email}.`);
+      
+      // Reset form
+      setFormData({ firstName: '', lastName: '', email: '' });
+      setDonationAmount('');
+      setCustomAmount('');
+      setSelectedAmount(null);
+    }, 2000);
   };
 
   return (
@@ -167,7 +153,7 @@ export default function Donate() {
                 </div>
               </motion.button>
 
-              {/* NEW: Donate Money Card */}
+              {/* RIGHT: Donate Money Card */}
               <motion.button
                 whileHover={{ scale: 1.02, y: -4 }}
                 className="relative rounded-3xl overflow-hidden text-left group shadow-xl"
@@ -216,7 +202,7 @@ export default function Donate() {
           )}
         </AnimatePresence>
 
-        {/* How it Works Section - Below cards */}
+        {/* How it Works Section */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -263,7 +249,7 @@ export default function Donate() {
               <div className="sticky top-0 bg-gradient-to-r from-teal-600 to-teal-700 text-white p-6 flex justify-between items-center rounded-t-2xl">
                 <div>
                   <h2 className="text-2xl font-bold">Make a Donation</h2>
-                  <p className="text-sm text-teal-100 mt-1">Powered by Stripe</p>
+                  <p className="text-sm text-teal-100 mt-1">Secure Payment Processing</p>
                 </div>
                 <button 
                   onClick={() => !isProcessing && setShowPaymentModal(false)}
@@ -358,7 +344,7 @@ export default function Donate() {
                   {isProcessing ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Processing...
+                      Processing Payment...
                     </>
                   ) : (
                     <>
@@ -370,10 +356,10 @@ export default function Donate() {
 
                 <div className="space-y-2">
                   <p className="text-sm text-gray-500 text-center flex items-center justify-center gap-2">
-                    🔒 Secure payment via Stripe
+                    🔒 Secure payment gateway integration
                   </p>
                   <p className="text-xs text-gray-400 text-center">
-                    You'll be redirected to Stripe's secure checkout
+                    Demo mode for project demonstration
                   </p>
                 </div>
               </div>
