@@ -46,7 +46,7 @@ export default function AIHub() {
                   </span>
                 </h1>
                 <p className="mt-3 text-lg text-purple-200">
-                  Smart tools to help you assess food quality and get instant assistance.
+                  Smart tools to help you assess food details, quality and get instant assistance.
                 </p>
               </motion.div>
             </div>
@@ -203,7 +203,7 @@ export default function AIHub() {
               </div>
               <h3 className="text-xl font-semibold mb-3">Visual Assessment</h3>
               <p className="text-gray-600">
-                Take photos of food items to get instant quality assessments based on visual indicators.
+                Take photos of food items to get instant quality assessments and details based on visual indicators.
               </p>
             </div>
 

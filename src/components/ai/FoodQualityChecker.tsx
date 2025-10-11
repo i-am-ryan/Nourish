@@ -225,102 +225,101 @@ if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
     reader.readAsDataURL(file);
   };
 
-  const handleAnalyze = async () => {
-    if (!selectedImage) {
-      console.log('No image selected for analysis');
-      return;
-    }
+// REPLACE YOUR handleAnalyze FUNCTION IN FoodQualityChecker.tsx WITH THIS:
 
-    console.log('Starting food analysis...');
-    setIsAnalyzing(true);
-    setCurrentStep('analyze');
+const handleAnalyze = async () => {
+  if (!selectedImage) {
+    console.log('No image selected for analysis');
+    return;
+  }
 
-    // Create a timeout fallback to prevent infinite loading
-    const analysisTimeout = setTimeout(() => {
-      console.log('Analysis timeout - switching to demo result');
-      setIsAnalyzing(false);
-      
-      // Create demo result based on food type
-      const demoResult: FoodQualityResult = {
-        quality: 'good',
-        confidence: 0.8,
-        shelfLife: getShelfLifeForType(foodType),
-        recommendations: getRecommendationsForType(foodType),
-        safetyNotes: ['Demo result - manual inspection recommended'],
-        foodName: getFoodNameForType(foodType) + ' (Demo)',
-        freshness: 'Unable to assess - AI service timeout',
-        nutritionalHighlights: getNutritionForType(foodType),
-        visualObservations: ['Analysis timed out - manual inspection needed'],
-        distributionSuitability: 'conditional',
-        reasoningDetails: 'AI analysis timed out after 10 seconds'
-      };
-      
-      setResult(demoResult);
-      setCurrentStep('result');
-      onResult?.(demoResult);
-      
-      toast({
-        title: 'Analysis Timeout',
-        description: 'Using demo result - AI service unavailable',
-        variant: 'default'
-      });
-    }, 10000); // 10 second timeout
+  console.log('🔍 Starting food analysis...');
+  setIsAnalyzing(true);
+  setCurrentStep('analyze');
 
-    try {
-      console.log('Calling AI service...');
-      const analysisResult = await aiService.assessFoodQuality(selectedImage, foodType);
-      
-      // Clear timeout since we got a result
-      clearTimeout(analysisTimeout);
-      console.log('Analysis completed:', analysisResult);
-      
-      setResult(analysisResult);
-      setCurrentStep('result');
-      onResult?.(analysisResult);
-      
-      toast({
-        title: 'Analysis Complete',
-        description: `Food assessed as ${analysisResult.quality}`,
-      });
-      
-    } catch (error) {
-      clearTimeout(analysisTimeout);
-      console.error('Analysis error:', error);
-      
-      // Provide fallback result
-      const fallbackResult: FoodQualityResult = {
-        quality: 'good',
-        confidence: 0.75,
-        shelfLife: getShelfLifeForType(foodType),
-        recommendations: [
-          'AI analysis failed - inspect manually',
-          'Check for spoilage signs',
-          'Store at appropriate temperature',
-          'When in doubt, don\'t consume',
-          ...getRecommendationsForType(foodType)
-        ],
-        safetyNotes: ['Manual inspection required'],
-        foodName: getFoodNameForType(foodType),
-        freshness: 'Unable to assess automatically',
-        nutritionalHighlights: getNutritionForType(foodType),
-        visualObservations: ['AI analysis unavailable'],
-        distributionSuitability: 'conditional',
-        reasoningDetails: 'AI service error - manual assessment needed'
-      };
-      
-      setResult(fallbackResult);
-      setCurrentStep('result');
-      onResult?.(fallbackResult);
-      
-      toast({
-        title: 'Analysis Error',
-        description: 'Showing manual guidance instead',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+  // Timeout fallback
+  const analysisTimeout = setTimeout(() => {
+    console.log('⏱️ Analysis timeout - using demo result');
+    setIsAnalyzing(false);
+    
+    const demoResult: FoodQualityResult = {
+      quality: 'good',
+      confidence: 0.8,
+      shelfLife: getShelfLifeForType(foodType),
+      recommendations: getRecommendationsForType(foodType),
+      safetyNotes: ['Demo result - manual inspection recommended'],
+      foodName: getFoodNameForType(foodType) + ' (Demo)',
+      freshness: 'Unable to assess - AI service timeout',
+      nutritionalHighlights: getNutritionForType(foodType),
+      visualObservations: ['Analysis timed out - manual inspection needed'],
+      distributionSuitability: 'conditional',
+      reasoningDetails: 'AI analysis timed out after 15 seconds'
+    };
+    
+    setResult(demoResult);
+    setCurrentStep('result');
+    onResult?.(demoResult);
+    
+    toast({
+      title: 'Analysis Timeout',
+      description: 'Using demo result - please try again',
+      variant: 'default'
+    });
+  }, 15000); // 15 second timeout
+
+  try {
+    console.log('🤖 Calling AI service with Gemini...');
+    
+    // TRY GEMINI FIRST (this is the new method)
+   const analysisResult = await aiService.assessFoodQuality(selectedImage, foodType);
+    
+    clearTimeout(analysisTimeout);
+    console.log('✅ Analysis completed:', analysisResult);
+    
+    setResult(analysisResult);
+    setCurrentStep('result');
+    onResult?.(analysisResult);
+    
+    toast({
+      title: '✨ Analysis Complete',
+      description: `Food assessed as ${analysisResult.quality}`,
+    });
+    
+  } catch (error) {
+    clearTimeout(analysisTimeout);
+    console.error('❌ Analysis error:', error);
+    
+    // Fallback result
+    const fallbackResult: FoodQualityResult = {
+      quality: 'good',
+      confidence: 0.75,
+      shelfLife: getShelfLifeForType(foodType),
+      recommendations: [
+        'AI analysis unavailable - inspect manually',
+        ...getRecommendationsForType(foodType)
+      ],
+      safetyNotes: ['Manual inspection required'],
+      foodName: getFoodNameForType(foodType),
+      freshness: 'Unable to assess automatically',
+      nutritionalHighlights: getNutritionForType(foodType),
+      visualObservations: ['AI analysis unavailable'],
+      distributionSuitability: 'conditional',
+      reasoningDetails: error instanceof Error ? error.message : 'AI service error'
+    };
+    
+    setResult(fallbackResult);
+    setCurrentStep('result');
+    onResult?.(fallbackResult);
+    
+    toast({
+      title: 'Using Fallback',
+      description: 'AI unavailable - showing manual guidance',
+      variant: 'destructive'
+    });
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
 
   const handleReset = () => {
     setSelectedImage(null);

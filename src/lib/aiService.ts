@@ -1,4 +1,6 @@
 // src/lib/aiService.ts
+
+import { GoogleGenerativeAI } from "@google/generative-ai";
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -52,6 +54,8 @@ export interface UserContext {
   role?: 'pickup' | 'delivery';
   isVerified?: boolean;
 }
+
+
 
 class AIService {
   private groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
@@ -125,6 +129,192 @@ class AIService {
     }
   }
 
+  async listAvailableModels(): Promise<void> {
+  try {
+    const genAI = new GoogleGenerativeAI(this.geminiApiKey);
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${this.geminiApiKey}`
+    );
+    const data = await response.json();
+    console.log('📋 Available Gemini models:', data.models?.map((m: any) => m.name));
+  } catch (error) {
+    console.error('Error listing models:', error);
+  }
+}
+
+async assessFoodQualityWithGemini(imageData: string, foodType?: string): Promise<FoodQualityResult> {
+  console.log('🚀 Starting Gemini food analysis...');
+  
+  if (!this.geminiApiKey) {
+    console.error('❌ Gemini API key not configured');
+    throw new Error('Gemini API key missing');
+  }
+
+  try {
+    // FIRST: Check what models are actually available
+    console.log('📋 Checking available models...');
+    const listResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${this.geminiApiKey}`
+    );
+    
+    if (listResponse.ok) {
+      const listData = await listResponse.json();
+      const availableModels = listData.models?.map((m: any) => m.name) || [];
+      console.log('✅ Available models:', availableModels);
+      
+      // Filter models that support vision
+      const visionModels = listData.models?.filter((m: any) => 
+        m.supportedGenerationMethods?.includes('generateContent') &&
+        (m.name.includes('vision') || m.name.includes('1.5'))
+      ).map((m: any) => m.name.replace('models/', '')) || [];
+      
+      console.log('👁️ Vision-capable models:', visionModels);
+    } else {
+      console.log('⚠️ Could not list models:', await listResponse.text());
+    }
+
+    // Extract base64 data
+    const base64Match = imageData.match(/^data:([^;]+);base64,(.+)$/);
+    if (!base64Match) {
+      throw new Error('Invalid image format');
+    }
+    const mimeType = base64Match[1];
+    const base64Data = base64Match[2];
+
+    const prompt = `Analyze this food image in detail. ${foodType ? `Hint: ${foodType}` : ''} 
+
+Return valid JSON with this structure:
+{
+  "foodName": "specific food name",
+  "quality": "excellent/good/fair/poor/unsafe",
+  "confidence": 0.85,
+  "freshness": "freshness description",
+  "shelfLife": "X days with storage",
+  "visualObservations": ["observation 1", "observation 2"],
+  "nutritionalHighlights": ["nutrient 1", "nutrient 2"],
+  "recommendations": ["tip 1", "tip 2"],
+  "safetyNotes": ["safety note"],
+  "availabilityInSA": {
+    "whereToBuy": ["Pick n Pay", "Checkers", "Woolworths"],
+    "averagePrice": "R20-50",
+    "buyLinks": [
+      {"store": "Pick n Pay", "url": "https://www.pnp.co.za/search?q=", "price": "R20-35"},
+      {"store": "Checkers", "url": "https://www.checkers.co.za/search?q=", "price": "R25-40"}
+    ]
+  }
+}`;
+
+    // Try both v1 and v1beta APIs with different model names
+    const modelsToTry = [
+      { api: 'v1', model: 'gemini-1.5-flash' },
+      { api: 'v1', model: 'gemini-1.5-pro' },
+      { api: 'v1', model: 'gemini-pro-vision' },
+      { api: 'v1beta', model: 'gemini-1.5-flash-latest' },
+      { api: 'v1beta', model: 'gemini-1.5-pro-latest' },
+      { api: 'v1beta', model: 'gemini-pro-vision' },
+    ];
+
+    let lastError;
+    
+    for (const { api, model } of modelsToTry) {
+      try {
+        console.log(`🔄 Trying ${api}/models/${model}`);
+        
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/${api}/models/${model}:generateContent?key=${this.geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  {
+                    inline_data: {
+                      mime_type: mimeType,
+                      data: base64Data
+                    }
+                  }
+                ]
+              }]
+            })
+          }
+        );
+
+        const responseText = await response.text();
+        
+        if (!response.ok) {
+          console.log(`❌ ${api}/${model} failed:`, responseText);
+          lastError = new Error(responseText);
+          continue;
+        }
+
+        const result = JSON.parse(responseText);
+        console.log(`✅ SUCCESS with ${api}/models/${model}!`);
+        
+        const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        console.log('📝 Response:', text.substring(0, 200) + '...');
+
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          console.log('⚠️ No JSON found, using text response');
+          throw new Error('No JSON in response');
+        }
+        
+        const parsed = JSON.parse(jsonMatch[0]);
+
+        return {
+          quality: parsed.quality || 'good',
+          confidence: parsed.confidence || 0.85,
+          foodName: parsed.foodName || 'Food Item',
+          shelfLife: parsed.shelfLife || '3-7 days',
+          freshness: parsed.freshness || 'Analysis complete',
+          recommendations: parsed.recommendations || ['Store properly'],
+          safetyNotes: parsed.safetyNotes || ['No immediate concerns'],
+          nutritionalHighlights: parsed.nutritionalHighlights || [],
+          visualObservations: parsed.visualObservations || [],
+          distributionSuitability: 'suitable',
+          reasoningDetails: `Analyzed using ${api}/${model}`,
+          availabilityInSA: parsed.availabilityInSA || {
+            whereToBuy: ['Pick n Pay', 'Checkers', 'Woolworths', 'Spar'],
+            averagePrice: 'Check in-store',
+            buyLinks: [
+              {store: 'Pick n Pay', url: 'https://www.pnp.co.za', price: 'Varies'},
+              {store: 'Checkers', url: 'https://www.checkers.co.za', price: 'Varies'}
+            ]
+          }
+        };
+        
+      } catch (modelError) {
+        console.log(`❌ ${api}/${model} error:`, modelError);
+        lastError = modelError;
+        continue;
+      }
+    }
+    
+    throw lastError || new Error('All model attempts failed');
+    
+  } catch (error) {
+    console.error('❌ Complete failure:', error);
+    throw error;
+  }
+}
+
+
+
+
+// ADD THIS IMPORT AT THE VERY TOP OF YOUR aiService.ts FILE
+
+
+// Then find your AIService class and add this new method
+// ADD THIS METHOD TO YOUR EXISTING AIService CLASS (don't replace anything)
+
+// REPLACE the assessFoodQualityWithGemini method in your aiService.ts with THIS:
+
+
+
   private createFallbackResponse(errorMessage?: string): ChatResponse {
     const fallbackMessages = [
       "I'm having trouble connecting to my AI service right now. Here are some things I can help you with manually:",
@@ -151,52 +341,39 @@ async assessFoodQuality(imageData: string, foodType?: string): Promise<FoodQuali
   }
 
   console.log('Using Hugging Face API for food analysis...');
-  console.log('HF API Key check:', this.hfApiKey.substring(0, 10) + '...');
   
   try {
-    const base64Data = imageData.split(',')[1];
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-    
-    // Try a different approach - convert base64 to blob first
-    const binaryString = atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    
-    const response = await fetch('https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning', {
+    // Use a different, more reliable free model
+    const response = await fetch('https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning-base', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.hfApiKey}`,
       },
-      signal: controller.signal,
-      body: bytes
+      body: imageData.split(',')[1] // Send raw base64
     });
 
-    clearTimeout(timeoutId);
-    
-    console.log('HF API response status:', response.status);
-    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Hugging Face API error:', response.status, errorText);
+      console.error('HF error:', errorText);
       
-      // If HF fails, create an intelligent demo result
+      // Model might be loading
+      if (errorText.includes('loading') || errorText.includes('currently loading')) {
+        console.log('Model is loading. Wait 20 seconds and try again.');
+      }
+      
       return this.createIntelligentDemoResult(foodType);
     }
 
     const result = await response.json();
-    console.log('HF API Response:', result);
+    console.log('HF Response:', result);
     
-    const description = result[0]?.generated_text || result.generated_text || 'Food item detected';
-    console.log('Image description:', description);
+    const description = result[0]?.generated_text || 'food item';
+    console.log('Detected:', description);
     
     return this.createSmartResultFromDescription(description, foodType);
     
   } catch (error) {
-    console.error('Food analysis error:', error);
+    console.error('Error:', error);
     return this.createIntelligentDemoResult(foodType);
   }
 }
