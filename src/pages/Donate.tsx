@@ -19,8 +19,12 @@ export default function Donate() {
     firstName: '',
     lastName: '',
     email: '',
+    cardNumber: '',
+    expiryDate: '',
+    cvv: '',
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const predefinedAmounts = [50, 100, 250, 500, 1000];
 
@@ -45,7 +49,7 @@ export default function Donate() {
   };
 
   const handlePaymentSubmit = () => {
-    if (!donationAmount || !formData.firstName || !formData.lastName || !formData.email) {
+    if (!donationAmount || !formData.firstName || !formData.lastName || !formData.email || !formData.cardNumber || !formData.expiryDate || !formData.cvv) {
       alert('Please fill in all required fields');
       return;
     }
@@ -56,15 +60,24 @@ export default function Donate() {
     setTimeout(() => {
       setShowPaymentModal(false);
       setIsProcessing(false);
+      setShowSuccess(true);
       
-      // Show success message
-      alert(`✅ Thank you ${formData.firstName}!\n\nYour donation of R${donationAmount} has been processed successfully.\n\nA confirmation email will be sent to ${formData.email}.`);
-      
-      // Reset form
-      setFormData({ firstName: '', lastName: '', email: '' });
-      setDonationAmount('');
-      setCustomAmount('');
-      setSelectedAmount(null);
+      // Auto-hide success banner after 5 seconds
+      setTimeout(() => {
+        setShowSuccess(false);
+        // Reset form
+        setFormData({ 
+          firstName: '', 
+          lastName: '', 
+          email: '', 
+          cardNumber: '', 
+          expiryDate: '', 
+          cvv: '' 
+        });
+        setDonationAmount('');
+        setCustomAmount('');
+        setSelectedAmount(null);
+      }, 5000);
     }, 2000);
   };
 
@@ -300,7 +313,7 @@ export default function Donate() {
 
                 {/* Personal Details */}
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-700">Your Details</h3>
+                  <h3 className="font-semibold text-gray-700">Personal Information</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <input
                       type="text"
@@ -335,10 +348,66 @@ export default function Donate() {
                   />
                 </div>
 
+                {/* Payment Details */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-700">Payment Details</h3>
+                  <div>
+                    <input
+                      type="text"
+                      name="cardNumber"
+                      placeholder="Card Number"
+                      maxLength={19}
+                      required
+                      value={formData.cardNumber}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\s/g, '');
+                        const formatted = value.match(/.{1,4}/g)?.join(' ') || value;
+                        handleInputChange({ ...e, target: { ...e.target, value: formatted } });
+                      }}
+                      disabled={isProcessing}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 font-mono"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Test: 4242 4242 4242 4242</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      name="expiryDate"
+                      placeholder="MM/YY"
+                      maxLength={5}
+                      required
+                      value={formData.expiryDate}
+                      onChange={(e) => {
+                        let value = e.target.value.replace(/\D/g, '');
+                        if (value.length >= 2) {
+                          value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                        }
+                        handleInputChange({ ...e, target: { ...e.target, value } });
+                      }}
+                      disabled={isProcessing}
+                      className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 font-mono"
+                    />
+                    <input
+                      type="text"
+                      name="cvv"
+                      placeholder="CVV"
+                      maxLength={3}
+                      required
+                      value={formData.cvv}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '');
+                        handleInputChange({ ...e, target: { ...e.target, value } });
+                      }}
+                      disabled={isProcessing}
+                      className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-gray-50 font-mono"
+                    />
+                  </div>
+                </div>
+
                 {/* Submit Button */}
                 <button
                   onClick={handlePaymentSubmit}
-                  disabled={!donationAmount || parseFloat(donationAmount) < 10 || !formData.firstName || !formData.lastName || !formData.email || isProcessing}
+                  disabled={!donationAmount || parseFloat(donationAmount) < 10 || !formData.firstName || !formData.lastName || !formData.email || !formData.cardNumber || !formData.expiryDate || !formData.cvv || isProcessing}
                   className="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 rounded-lg font-bold text-lg hover:from-teal-700 hover:to-teal-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (
@@ -364,6 +433,53 @@ export default function Donate() {
                 </div>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Banner */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -100 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4"
+          >
+            <div className="bg-white rounded-2xl shadow-2xl border-2 border-green-500 overflow-hidden">
+              <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-4 flex items-center gap-3">
+                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                  <CheckCircle2 className="w-7 h-7 text-green-500" />
+                </div>
+                <div className="flex-1 text-white">
+                  <h3 className="font-bold text-lg">Payment Successful!</h3>
+                  <p className="text-sm text-green-50">Thank you for your donation</p>
+                </div>
+                <button 
+                  onClick={() => setShowSuccess(false)}
+                  className="text-white hover:bg-white/20 p-2 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 bg-gradient-to-b from-green-50 to-white">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Amount:</span>
+                    <span className="font-bold text-gray-900">R{donationAmount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Donor:</span>
+                    <span className="font-semibold text-gray-900">{formData.firstName} {formData.lastName}</span>
+                  </div>
+                  <div className="pt-2 border-t border-gray-200">
+                    <p className="text-gray-600 text-xs">
+                      A confirmation email has been sent to <span className="font-semibold">{formData.email}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
