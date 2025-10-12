@@ -180,20 +180,8 @@ export default function HubCard({ hub }: Props) {
               </div>
 
               <div className="space-y-3">
-                <div className="font-medium">What’s available</div>
-                <div className="flex flex-wrap gap-2">
-                  {(hub.services && hub.services.length
-                    ? hub.services
-                    : ["Bread", "Chicken soup", "Rice", "Pap", "South African staples"]
-                  ).map((t) => (
-                    <span
-                      key={t}
-                      className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs"
-                    >
-                      {t}
-                    </span>
-                  ))}
-                </div>
+             
+                
 
                 {hub.hours && (
                   <>
