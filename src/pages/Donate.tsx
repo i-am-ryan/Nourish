@@ -480,23 +480,22 @@ export default function Donate() {
                 </div>
 
                 {/* Submit Button */}
-                <button
-                  onClick={handlePaymentSubmit}
-                  disabled={!donationAmount || parseFloat(donationAmount) < 10 || !formData.firstName || !formData.lastName || !formData.email || !formData.cardHolderName || !formData.cardNumber || !formData.expiryDate || !formData.cvv || isProcessing}
-                  className="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 rounded-lg font-bold text-lg hover:from-teal-700 hover:to-teal-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Processing Payment...
-                    </>
-                  ) : (
-                    <>
-                      <DollarSign className="w-5 h-5" />
-                      Donate R{donationAmount || '0'}
-                    </>
-                  )}
-                </button>
+<button
+  onClick={handlePaymentSubmit}
+  disabled={!donationAmount || parseFloat(donationAmount) < 10 || !formData.firstName || !formData.lastName || !formData.email || !formData.cardHolderName || !formData.cardNumber || !formData.expiryDate || !formData.cvv || isProcessing}
+  className="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 rounded-lg font-bold text-lg hover:from-teal-700 hover:to-teal-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+>
+  {isProcessing ? (
+    <>
+      <Loader2 className="w-5 h-5 animate-spin" />
+      Processing Payment...
+    </>
+  ) : (
+    <>
+      Donate R{donationAmount || '0'}
+    </>
+  )}
+</button>
 
                 <div className="space-y-2">
                   <p className="text-sm text-gray-500 text-center flex items-center justify-center gap-2">

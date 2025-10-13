@@ -207,32 +207,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({ onToggleMode }) => {
             </span>
           </motion.div>
 
-          {/* Google Sign In */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.8, duration: 0.5 }}
-          >
-            <Button
-              variant="outline"
-              className="w-full h-12 border-2 border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-emerald-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] font-medium"
-              size="lg"
-              onClick={handleGoogle}
-              disabled={loading || googleLoading}
-            >
-              {googleLoading ? (
-                <>
-                  <Loader2 className="mr-3 h-5 w-5 animate-spin" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Chrome className="mr-3 h-5 w-5 text-blue-500" />
-                  Continue with Google
-                </>
-              )}
-            </Button>
-          </motion.div>
+
 
           {/* Sign Up Link */}
           <motion.p
