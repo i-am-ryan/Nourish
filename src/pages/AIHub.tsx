@@ -1,17 +1,19 @@
 // src/pages/AIHub.tsx
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, Camera, MessageSquare, Sparkles, ArrowRight } from "lucide-react";
+import { Bot, Camera, MessageSquare, Sparkles, ArrowRight, Scan } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FoodQualityChecker from "@/components/ai/FoodQualityChecker";
 import SmartChatbot from "@/components/ai/SmartChatbot";
+import FoodScanner from "@/components/ai/FoodScanner";
 
 const HERO_IMG = "/lovable-uploads/erhan-astam-yLcK3Itx6ok-unsplash.jpg";
 
 export default function AIHub() {
-  const [activeFeature, setActiveFeature] = useState<"none" | "quality" | "chat">("none");
+  const [activeFeature, setActiveFeature] = useState<"none" | "quality" | "chat" | "scanner">("none");
   const [chatbotOpen, setChatbotOpen] = useState(false);
   const [qualityCheckerOpen, setQualityCheckerOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   return (
     <div className="pt-20">
@@ -54,74 +56,114 @@ export default function AIHub() {
         </div>
       </motion.section>
 
-{/* AI Features */}
-<div className="max-w-5xl mx-auto px-6 mt-20 mb-16">
-  <AnimatePresence mode="wait">
-    {activeFeature === "none" ? (
-      <motion.div
-        key="choice"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 12 }}
-        transition={{ duration: 0.25 }}
-        className="flex justify-center"
-      >
-        {/* Smart Chatbot - CENTERED */}
-        <motion.button
-          whileHover={{ scale: 1.02, y: -4 }}
-          className="relative rounded-3xl overflow-hidden text-left group shadow-xl max-w-2xl w-full"
-          onClick={() => setChatbotOpen(true)}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-600" />
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-800/80 to-teal-800/60" />
-          <div className="relative p-8 h-64 flex flex-col justify-between text-white">
-            <div className="flex items-center gap-3">
-              <span className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center">
-                <MessageSquare className="w-6 h-6" />
-              </span>
-              <div>
-                <div className="text-2xl font-bold">Smart Assistant</div>
-                <div className="text-white/85">
-                  Get instant help with food safety and platform guidance
+      {/* AI Features */}
+      <div className="max-w-6xl mx-auto px-6 mt-20 mb-16">
+        <AnimatePresence mode="wait">
+          {activeFeature === "none" ? (
+            <motion.div
+              key="choice"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.25 }}
+              className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto"
+            >
+              {/* AI Food Scanner - NEW */}
+              <motion.button
+                whileHover={{ scale: 1.02, y: -4 }}
+                className="relative rounded-3xl overflow-hidden text-left group shadow-xl"
+                onClick={() => setScannerOpen(true)}
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-600" />
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-800/80 to-indigo-800/60" />
+                <div className="relative p-8 h-64 flex flex-col justify-between text-white">
+                  <div className="flex items-center gap-3">
+                    <span className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center">
+                      <Scan className="w-6 h-6" />
+                    </span>
+                    <div>
+                      <div className="text-2xl font-bold">AI Food Scanner</div>
+                      <div className="text-white/85">
+                        Scan any food for nutrition info & SA availability
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                      <span>Nutritional analysis</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                      <span>South African stores & pricing</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                      <span>Storage & shelf life info</span>
+                    </div>
+                  </div>
+                  <div className="inline-flex items-center gap-2 self-start text-sm rounded-full bg-white/15 px-3 py-1 group-hover:bg-white/25 transition">
+                    Scan food <ArrowRight className="w-4 h-4" />
+                  </div>
                 </div>
+              </motion.button>
+
+              {/* Smart Chatbot */}
+              <motion.button
+                whileHover={{ scale: 1.02, y: -4 }}
+                className="relative rounded-3xl overflow-hidden text-left group shadow-xl"
+                onClick={() => setChatbotOpen(true)}
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-600" />
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-800/80 to-teal-800/60" />
+                <div className="relative p-8 h-64 flex flex-col justify-between text-white">
+                  <div className="flex items-center gap-3">
+                    <span className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center">
+                      <MessageSquare className="w-6 h-6" />
+                    </span>
+                    <div>
+                      <div className="text-2xl font-bold">Smart Assistant</div>
+                      <div className="text-white/85">
+                        Get instant help with food safety and platform guidance
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                      <span>Food safety guidance</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                      <span>Platform navigation help</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                      <span>Volunteer task assistance</span>
+                    </div>
+                  </div>
+                  <div className="inline-flex items-center gap-2 self-start text-sm rounded-full bg-white/15 px-3 py-1 group-hover:bg-white/25 transition">
+                    Start chatting <ArrowRight className="w-4 h-4" />
+                  </div>
+                </div>
+              </motion.button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="back"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+            >
+              <div className="text-center">
+                <Button variant="ghost" onClick={() => setActiveFeature("none")}>
+                  ← Back to AI Hub
+                </Button>
               </div>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
-                <span>Food safety guidance</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
-                <span>Platform navigation help</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
-                <span>Volunteer task assistance</span>
-              </div>
-            </div>
-            <div className="inline-flex items-center gap-2 self-start text-sm rounded-full bg-white/15 px-3 py-1 group-hover:bg-white/25 transition">
-              Start chatting <ArrowRight className="w-4 h-4" />
-            </div>
-          </div>
-        </motion.button>
-      </motion.div>
-    ) : (
-      <motion.div
-        key="back"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 8 }}
-      >
-        <div className="text-center">
-          <Button variant="ghost" onClick={() => setActiveFeature("none")}>
-            ← Back to AI Hub
-          </Button>
-        </div>
-      </motion.div>
-    )}
-  </AnimatePresence>
-</div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* AI Components */}
       <FoodQualityChecker
@@ -135,6 +177,11 @@ export default function AIHub() {
       <SmartChatbot
         isOpen={chatbotOpen}
         onToggle={() => setChatbotOpen(!chatbotOpen)}
+      />
+
+      <FoodScanner
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
       />
 
       {/* How AI Helps Section */}
