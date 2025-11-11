@@ -30,10 +30,10 @@ interface ScanResult {
   shelfLife?: string;
 }
 
-// 🛑 EXPOSED API KEY - FOR PRESENTATION ONLY!
-// WARNING: This key is public. Change this immediately after your presentation.
-const GEMINI_API_KEY = "AIzaSyBf_93Cqsyq9bYMWxhpolte9SdAytmDa_M"; 
-const GEMINI_MODEL = "gemini-2.5-flash"; 
+// 🛑 SECURITY WARNING: Your API key is exposed on the client-side.
+// This is NOT secure. Anyone can steal and use your key.
+// TODO: Move this API call to a backend/serverless function immediately.
+const GEMINI_API_KEY = "AIzaSyBf_93Cqsyq9bYMWxhpolte9SdAytmDa_M";
 
 export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
   const [image, setImage] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext("2d");
-      ctx?.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height); 
+      ctx?.drawImage(videoRef.current, 0, 0);
       const imageData = canvas.toDataURL("image/jpeg");
       setImage(imageData);
       stopCamera();
@@ -100,10 +100,22 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
     setError(null);
 
     try {
-      // Extract the base64 part of the data URL
       const base64Data = image.split(",")[1];
 
-      const prompt = `Analyze the food item in this image. Provide detailed information in a valid JSON object. Include:
+      // Use the correct `gemini-pro-vision` model (or `gemini-2.5-flash` with the correct endpoint)
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Analyze the food item in this image. Provide detailed information in a valid JSON object. Include:
 1.  **foodName**: A short name for the food.
 2.  **description**: A brief one-sentence description.
 3.  **nutritionalInfo**: An object with calories (per 100g), protein, carbs, fats, fiber, and key vitamins (as an array of strings).
@@ -112,24 +124,17 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
 6.  **storageAdvice**: A string with storage tips.
 7.  **shelfLife**: A string describing the typical shelf life.
 
-Respond ONLY with the raw JSON object, without any markdown formatting like \`\`\`json or \`\`\`.`;
-
-      // ✅ Calling the external API directly with the exposed key
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              { parts: [{ text: prompt }] },
-              {
-                inline_data: {
-                  mime_type: "image/jpeg", 
-                  data: base64Data,
-                },
+Respond ONLY with the raw JSON object, without any markdown formatting like \`\`\`json or \`\`\`.`
+                  },
+                  {
+                    // ✅ FIX 1: Changed 'inline_data' to 'inlineData' (camelCase)
+                    inlineData: { 
+                      // ✅ FIX 2: Changed 'mime_type' to 'mimeType' (camelCase)
+                      mimeType: "image/jpeg", 
+                      data: base64Data,
+                    },
+                  },
+                ],
               },
             ],
           }),
@@ -137,20 +142,19 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
       );
 
       if (!response.ok) {
-        // Simple error handling for external API failure
         const errorData = await response.json();
+        console.error("API Error Response:", errorData);
         throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
       }
 
-      const data = await response.json(); 
+      const data = await response.json();
 
       if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
         throw new Error("Invalid or empty response from API. The model may not have been able to identify the food.");
       }
 
       const textContent = data.candidates[0].content.parts[0].text;
-
-      // Clean up common markdown formatting
+      
       const cleanedText = textContent
         .replace(/```json\n?/g, "")
         .replace(/```\n?/g, "")
@@ -160,8 +164,7 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
       setResult(parsedResult);
     } catch (err: any) {
       console.error("Analysis error:", err);
-      // Simplified error message
-      setError(`Failed to analyze the food item. Error: ${err.message || 'Check network connection or API key.'}`);
+      setError(`Failed to analyze the food item. Please try again with a clear, well-lit image. Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
