@@ -1,8 +1,8 @@
-// src/components/ai/FoodScanner.tsx
 import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Camera, Upload, Loader2, Package, MapPin, Info, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+// Assuming Button is imported correctly from your components library
+// import { Button } from "@/components/ui/button";
 
 interface FoodScannerProps {
   isOpen: boolean;
@@ -32,9 +32,34 @@ interface ScanResult {
 
 // 🛑 SECURITY WARNING: Your API key is exposed on the client-side.
 const GEMINI_API_KEY = "AIzaSyBf_93Cqsyq9bYMWxhpolte9SdAytmDa_M";
-
-// ✅ FIX: Use the stable, current multi-modal model
 const GEMINI_MODEL = "gemini-2.5-flash"; 
+
+// --- PRESENTATION MODE FALLBACK CACHE ---
+// This result will be used if the live API call (with retries) fails.
+const DEMO_FALLBACK_RESULT: ScanResult = {
+  foodName: "Raw Chicken Breast Fillet",
+  description: "A lean cut of white poultry meat, often sold boneless and skinless.",
+  nutritionalInfo: {
+    calories: "165 kcal per 100g",
+    protein: "31g",
+    carbs: "0g",
+    fats: "3.6g",
+    fiber: "0g",
+    vitamins: ["Niacin (B3)", "Vitamin B6", "Selenium", "Phosphorus"],
+  },
+  ingredients: ["Fresh Chicken Breast"],
+  availability: {
+    stores: ["Pick n Pay", "Checkers", "Woolworths", "Spar"],
+    priceRange: "R50 - R90 per kg",
+    commonBrands: ["Farm Fresh", "Goldi", "Rainbow Chickens"],
+  },
+  storageAdvice: "Store immediately in the coldest part of the refrigerator (below 4°C). If freezing, wrap tightly in freezer-safe bags.",
+  shelfLife: "2 days in the refrigerator; 9 months in the freezer.",
+};
+// ----------------------------------------
+
+// Utility function for delay (used in exponential backoff)
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
   const [image, setImage] = useState<string | null>(null);
@@ -44,6 +69,20 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [cameraActive, setCameraActive] = useState(false);
+
+  // Placeholder for Button component if not imported from shadcn/ui
+  const Button: React.FC<any> = ({ children, onClick, className, variant = 'default', disabled = false }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`px-4 py-2 rounded-full font-semibold transition ${className} ${
+        variant === 'outline' ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100' : 
+        'bg-blue-600 text-white hover:bg-blue-700'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+      {children}
+    </button>
+  );
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -78,7 +117,7 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext("2d");
-      ctx?.drawImage(videoRef.current, 0, 0, canvas.width, videoRef.current.videoHeight); // Adjusted drawImage for safety
+      ctx?.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
       const imageData = canvas.toDataURL("image/jpeg");
       setImage(imageData);
       stopCamera();
@@ -100,23 +139,16 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
     setLoading(true);
     setError(null);
 
-    try {
-      const base64Data = image.split(",")[1];
-
-      // ✅ FIX: Using the correct 'v1' endpoint and 'gemini-2.5-flash' model
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              {
+    const MAX_RETRIES = 3;
+    const base64Data = image.split(",")[1];
+    
+    // API Request Payload
+    const payload = {
+        contents: [
+            {
                 parts: [
-                  {
-                    text: `Analyze the food item in this image. Provide detailed information in a valid JSON object. Include:
+                    {
+                        text: `Analyze the food item in this image. Provide detailed information in a valid JSON object. Include:
 1.  **foodName**: A short name for the food.
 2.  **description**: A brief one-sentence description.
 3.  **nutritionalInfo**: An object with calories (per 100g), protein, carbs, fats, fiber, and key vitamins (as an array of strings).
@@ -126,49 +158,86 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
 7.  **shelfLife**: A string describing the typical shelf life.
 
 Respond ONLY with the raw JSON object, without any markdown formatting like \`\`\`json or \`\`\`.`
-                  },
-                  {
-                    inlineData: { 
-                      mimeType: "image/jpeg", 
-                      data: base64Data,
                     },
-                  },
+                    {
+                        inlineData: { 
+                            mimeType: "image/jpeg", 
+                            data: base64Data,
+                        },
+                    },
                 ],
-              },
-            ],
-          }),
+            },
+        ],
+    };
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                }
+            );
+
+            // Check for Service Overloaded (503) and implement backoff
+            if (response.status === 503 && attempt < MAX_RETRIES - 1) {
+                const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s...
+                await delay(waitTime);
+                continue; // Go to the next attempt
+            }
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("API Error Response:", errorData);
+                throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+                throw new Error("Invalid or empty response from API. The model may not have been able to identify the food.");
+            }
+
+            const textContent = data.candidates[0].content.parts[0].text;
+            
+            const cleanedText = textContent
+                .replace(/```json\n?/g, "")
+                .replace(/```\n?/g, "")
+                .trim();
+
+            const parsedResult = JSON.parse(cleanedText);
+            setResult(parsedResult);
+            // Success, break the loop
+            setLoading(false);
+            return;
+            
+        } catch (err: any) {
+            // If it's the last attempt or a non-retryable error, handle failure
+            if (attempt === MAX_RETRIES - 1) {
+                console.warn("API failed after all retries. Falling back to DEMO CACHE.");
+                // --- FALLBACK LOGIC ---
+                setResult(DEMO_FALLBACK_RESULT); 
+                setError("Note: Live AI analysis failed due to service overload. Displaying cached presentation results.");
+                setLoading(false);
+                return;
+            }
+            // For 503 errors on previous attempts, the `continue` handles the retry.
+            // For other errors (e.g., JSON parsing error), we set error and exit immediately.
+            if (!(err instanceof Error && err.message.includes("503"))) {
+                console.error("Analysis error:", err);
+                setError(`Failed to analyze the food item. Please try again with a clear, well-lit image. Error: ${err.message}`);
+                setLoading(false);
+                return;
+            }
         }
-      );
-
-      if (!response.ok) {
-        // This block handles the 404/400 errors from the API
-        const errorData = await response.json();
-        console.error("API Error Response:", errorData);
-        throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
-        throw new Error("Invalid or empty response from API. The model may not have been able to identify the food.");
-      }
-
-      const textContent = data.candidates[0].content.parts[0].text;
-      
-      const cleanedText = textContent
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim();
-
-      const parsedResult = JSON.parse(cleanedText);
-      setResult(parsedResult);
-    } catch (err: any) {
-      console.error("Analysis error:", err);
-      // Display the specific error message to the user
-      setError(`Failed to analyze the food item. Please try again with a clear, well-lit image. Error: ${err.message}`);
-    } finally {
-      setLoading(false);
     }
+    
+    // Should be unreachable due to the logic above, but added for safety
+    setLoading(false);
   };
 
   const reset = () => {
@@ -343,6 +412,12 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
+                 {result === DEMO_FALLBACK_RESULT && (
+                    <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-4 rounded-lg font-medium text-sm flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        <span>Presentation Fallback: Live API failed. Displaying cached Chicken Breast result.</span>
+                    </div>
+                )}
                 <div className="flex flex-col md:flex-row gap-4">
                   <img src={image!} alt="Scanned food" className="w-32 h-32 rounded-lg object-cover flex-shrink-0 mx-auto md:mx-0" />
                   <div className="flex-1 text-center md:text-left">
