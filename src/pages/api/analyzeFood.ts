@@ -5,16 +5,18 @@ import { NextApiRequest, NextApiResponse } from 'next';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = "gemini-2.5-flash"; 
 
+// Configuration to handle large image payloads and extend the execution time
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '4mb', // Allows for larger image uploads
+      sizeLimit: '4mb', // Increase limit for image data
     },
     maxDuration: 10, // Max duration for Vercel Hobby/Pro (default is 5s)
   },
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -23,7 +25,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!GEMINI_API_KEY) {
     console.error("GEMINI_API_KEY not set!");
     // Status 500 for a server-side misconfiguration
-    return res.status(500).json({ error: 'Server configuration error: API key missing.' });
+    return res.status(500).json({ 
+        error: 'Server configuration error: GEMINI_API_KEY missing on Vercel.' 
+    });
   }
 
   try {
@@ -33,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing image data.' });
     }
 
-    // Extract the base64 part of the data URL
+    // Extract the base64 part of the data URL (e.g., removing 'data:image/jpeg;base64,')
     const base64Data = image.split(",")[1];
 
     const fullPrompt = prompt || `Analyze the food item in this image. Provide detailed information in a valid JSON object. Include:
@@ -67,7 +71,7 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
       }
     );
 
-    // 3. Handle potential API errors
+    // 3. Handle potential Gemini API errors (e.g., rate limit, bad request)
     if (!apiResponse.ok) {
       const errorData = await apiResponse.json();
       console.error("External API Error:", errorData);
@@ -76,11 +80,12 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
       });
     }
 
+    // 4. Return the successful response from Gemini
     const data = await apiResponse.json();
     return res.status(200).json(data);
 
   } catch (e: any) {
     console.error("Internal Server Error:", e);
-    return res.status(500).json({ error: 'An unexpected error occurred on the server.' });
+    return res.status(500).json({ error: 'An unexpected server error occurred.' });
   }
 }

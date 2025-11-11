@@ -30,10 +30,7 @@ interface ScanResult {
   shelfLife?: string;
 }
 
-// 🛑 REMOVED: The API Key constant is gone, securing your key.
-// const GEMINI_API_KEY = "AIzaSyBf_93Cqsyq9bYMWxhpolte9SdAytmDa_M";
-
-// Define the local endpoint that calls your Vercel Serverless Function
+// 🛑 API key removed from the frontend for security!
 const API_ROUTE_URL = "/api/analyzeFood"; 
 
 export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
@@ -78,7 +75,7 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext("2d");
-      ctx?.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height); // Adjusted drawImage call
+      ctx?.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height); 
       const imageData = canvas.toDataURL("image/jpeg");
       setImage(imageData);
       stopCamera();
@@ -101,7 +98,6 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
     setError(null);
 
     try {
-      // Define the detailed prompt text here
       const prompt = `Analyze the food item in this image. Provide detailed information in a valid JSON object. Include:
 1.  **foodName**: A short name for the food.
 2.  **description**: A brief one-sentence description.
@@ -120,25 +116,36 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          // Send the image data (base64) and the prompt to the Vercel serverless function
           image: image, 
           prompt: prompt,
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API Error Response:", errorData);
-        // Throw the error message provided by the Vercel serverless function
-        throw new Error(errorData.error || `API request failed with status ${response.status}`);
+        // ✅ CRITICAL FIX: Robust error handling to catch non-JSON/empty Vercel error responses
+        let errorBody = null;
+        try {
+            // Attempt to parse the body as JSON if it exists
+            errorBody = await response.json();
+        } catch (e) {
+            // If parsing fails (Unexpected end of JSON input), errorBody remains null
+            console.error("Failed to parse error response as JSON:", e);
+        }
+        
+        // Use the error message from the body if available, otherwise construct a generic one
+        const errorMessage = errorBody?.error 
+            || `Server returned status ${response.status} (${response.statusText || 'Unknown Error'}). This often means a timeout or missing server-side configuration.`;
+
+        throw new Error(errorMessage);
       }
 
+      // Success Path: Parse the successful JSON response
       const data = await response.json(); 
 
       if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
         throw new Error("Invalid or empty response from API. The model may not have been able to identify the food.");
       }
-
+      
       const textContent = data.candidates[0].content.parts[0].text;
 
       // Clean up common markdown formatting if the model adds it unexpectedly
@@ -152,9 +159,11 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
     } catch (err: any) {
       console.error("Analysis error:", err);
       // Display a more helpful error to the user based on the received message
-      const message = err.message.includes("API key missing") 
+      const message = err.message.includes("405") 
+        ? "Server Error: Method Not Allowed. Check server logs."
+        : err.message.includes("API key missing") 
         ? "Server Error: Secure API Key not configured on Vercel."
-        : err.message.includes("429")
+        : err.message.includes("Request Limit Exceeded") 
         ? "Request Limit Exceeded. Try again in a minute."
         : err.message;
 
