@@ -30,8 +30,10 @@ interface ScanResult {
   shelfLife?: string;
 }
 
-// 🛑 API key removed from the frontend for security!
-const API_ROUTE_URL = "/api/analyzeFood"; 
+// 🛑 EXPOSED API KEY - FOR PRESENTATION ONLY!
+// WARNING: This key is public. Change this immediately after your presentation.
+const GEMINI_API_KEY = "AIzaSyBf_93Cqsyq9bYMWxhpolte9SdAytmDa_M"; 
+const GEMINI_MODEL = "gemini-2.5-flash"; 
 
 export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
   const [image, setImage] = useState<string | null>(null);
@@ -98,6 +100,9 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
     setError(null);
 
     try {
+      // Extract the base64 part of the data URL
+      const base64Data = image.split(",")[1];
+
       const prompt = `Analyze the food item in this image. Provide detailed information in a valid JSON object. Include:
 1.  **foodName**: A short name for the food.
 2.  **description**: A brief one-sentence description.
@@ -108,47 +113,44 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
 7.  **shelfLife**: A string describing the typical shelf life.
 
 Respond ONLY with the raw JSON object, without any markdown formatting like \`\`\`json or \`\`\`.`;
-      
-      // ✅ Call the secure Vercel API Route
-      const response = await fetch(API_ROUTE_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image: image, 
-          prompt: prompt,
-        }),
-      });
+
+      // ✅ Calling the external API directly with the exposed key
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              { parts: [{ text: prompt }] },
+              {
+                inline_data: {
+                  mime_type: "image/jpeg", 
+                  data: base64Data,
+                },
+              },
+            ],
+          }),
+        }
+      );
 
       if (!response.ok) {
-        // ✅ CRITICAL FIX: Robust error handling to catch non-JSON/empty Vercel error responses
-        let errorBody = null;
-        try {
-            // Attempt to parse the body as JSON if it exists
-            errorBody = await response.json();
-        } catch (e) {
-            // If parsing fails (Unexpected end of JSON input), errorBody remains null
-            console.error("Failed to parse error response as JSON:", e);
-        }
-        
-        // Use the error message from the body if available, otherwise construct a generic one
-        const errorMessage = errorBody?.error 
-            || `Server returned status ${response.status} (${response.statusText || 'Unknown Error'}). This often means a timeout or missing server-side configuration.`;
-
-        throw new Error(errorMessage);
+        // Simple error handling for external API failure
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
       }
 
-      // Success Path: Parse the successful JSON response
       const data = await response.json(); 
 
       if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
         throw new Error("Invalid or empty response from API. The model may not have been able to identify the food.");
       }
-      
+
       const textContent = data.candidates[0].content.parts[0].text;
 
-      // Clean up common markdown formatting if the model adds it unexpectedly
+      // Clean up common markdown formatting
       const cleanedText = textContent
         .replace(/```json\n?/g, "")
         .replace(/```\n?/g, "")
@@ -158,16 +160,8 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
       setResult(parsedResult);
     } catch (err: any) {
       console.error("Analysis error:", err);
-      // Display a more helpful error to the user based on the received message
-      const message = err.message.includes("405") 
-        ? "Server Error: Method Not Allowed. Check server logs."
-        : err.message.includes("API key missing") 
-        ? "Server Error: Secure API Key not configured on Vercel."
-        : err.message.includes("Request Limit Exceeded") 
-        ? "Request Limit Exceeded. Try again in a minute."
-        : err.message;
-
-      setError(`Failed to analyze the food item. Please try again with a clear, well-lit image. Error: ${message}`);
+      // Simplified error message
+      setError(`Failed to analyze the food item. Error: ${err.message || 'Check network connection or API key.'}`);
     } finally {
       setLoading(false);
     }
