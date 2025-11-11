@@ -31,9 +31,10 @@ interface ScanResult {
 }
 
 // 🛑 SECURITY WARNING: Your API key is exposed on the client-side.
-// This is NOT secure. Anyone can steal and use your key.
-// TODO: Move this API call to a backend/serverless function immediately.
 const GEMINI_API_KEY = "AIzaSyBf_93Cqsyq9bYMWxhpolte9SdAytmDa_M";
+
+// ✅ FIX: Use the stable, current multi-modal model
+const GEMINI_MODEL = "gemini-2.5-flash"; 
 
 export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
   const [image, setImage] = useState<string | null>(null);
@@ -77,7 +78,7 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext("2d");
-      ctx?.drawImage(videoRef.current, 0, 0);
+      ctx?.drawImage(videoRef.current, 0, 0, canvas.width, videoRef.current.videoHeight); // Adjusted drawImage for safety
       const imageData = canvas.toDataURL("image/jpeg");
       setImage(imageData);
       stopCamera();
@@ -102,9 +103,9 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
     try {
       const base64Data = image.split(",")[1];
 
-      // Use the correct `gemini-pro-vision` model (or `gemini-2.5-flash` with the correct endpoint)
+      // ✅ FIX: Using the correct 'v1' endpoint and 'gemini-2.5-flash' model
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
         {
           method: "POST",
           headers: {
@@ -127,9 +128,7 @@ export default function FoodScanner({ isOpen, onClose }: FoodScannerProps) {
 Respond ONLY with the raw JSON object, without any markdown formatting like \`\`\`json or \`\`\`.`
                   },
                   {
-                    // ✅ FIX 1: Changed 'inline_data' to 'inlineData' (camelCase)
                     inlineData: { 
-                      // ✅ FIX 2: Changed 'mime_type' to 'mimeType' (camelCase)
                       mimeType: "image/jpeg", 
                       data: base64Data,
                     },
@@ -142,6 +141,7 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
       );
 
       if (!response.ok) {
+        // This block handles the 404/400 errors from the API
         const errorData = await response.json();
         console.error("API Error Response:", errorData);
         throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
@@ -164,6 +164,7 @@ Respond ONLY with the raw JSON object, without any markdown formatting like \`\`
       setResult(parsedResult);
     } catch (err: any) {
       console.error("Analysis error:", err);
+      // Display the specific error message to the user
       setError(`Failed to analyze the food item. Please try again with a clear, well-lit image. Error: ${err.message}`);
     } finally {
       setLoading(false);
