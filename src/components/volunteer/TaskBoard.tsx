@@ -241,80 +241,47 @@ export default function TaskBoard({ roleFilter, userStats, setUserStats }: TaskB
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-{!mineCard && t.status === "open" && (
-  <Button
-    onClick={() => {
-      const taskId = t.id;
-      act(async () => {
-        const result = await V.acceptTask(taskId);
-        
-        // ADD EMAIL NOTIFICATION after successful acceptance
-        if (!result.error && user?.email) {
-          try {
-            const { sendTaskAcceptedNotification } = await import("@/lib/emailService");
-            await sendTaskAcceptedNotification(
-              user.email,
-              user.user_metadata?.full_name || 'Volunteer',
-              t
-            );
-          } catch (emailError) {
-            console.error('Failed to send acceptance email:', emailError);
-          }
-        }
-        
-        return result;
-      }, "Task accepted", "accept");
-    }}
-    size="sm"
-  >
-    Accept
-    <ChevronRight className="w-4 h-4 ml-1" />
-  </Button>
-)}
+            {/* ACCEPT BUTTON - NO DUPLICATE EMAIL */}
+            {!mineCard && t.status === "open" && (
+              <Button
+                onClick={() => {
+                  const taskId = t.id;
+                  act(() => V.acceptTask(taskId), "Task accepted", "accept");
+                }}
+                size="sm"
+              >
+                Accept
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            )}
 
-{mineCard && (t.status === "assigned" || t.status === "open") && (
-  <Button
-    variant="secondary"
-    onClick={() => {
-      const taskId = t.id;
-      act(() => V.startTask(taskId), "Task started");
-    }}
-    size="sm"
-  >
-    Start
-  </Button>
-)}
+            {/* START BUTTON */}
+            {mineCard && (t.status === "assigned" || t.status === "open") && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const taskId = t.id;
+                  act(() => V.startTask(taskId), "Task started");
+                }}
+                size="sm"
+              >
+                Start
+              </Button>
+            )}
 
-{mineCard && t.status !== "completed" && (
-  <Button
-    variant="outline"
-    onClick={() => {
-      const taskId = t.id;
-      act(async () => {
-        const result = await V.completeTask(taskId);
-        
-        // ADD EMAIL NOTIFICATION after successful completion
-        if (!result.error && user?.email) {
-          try {
-            const { sendTaskCompletedNotification } = await import("@/lib/emailService");
-            await sendTaskCompletedNotification(
-              user.email,
-              user.user_metadata?.full_name || 'Volunteer',
-              t
-            );
-          } catch (emailError) {
-            console.error('Failed to send completion email:', emailError);
-          }
-        }
-        
-        return result;
-      }, "Task completed", "complete");
-    }}
-    size="sm"
-  >
-    Complete
-  </Button>
-)}
+            {/* COMPLETE BUTTON - NO DUPLICATE EMAIL */}
+            {mineCard && t.status !== "completed" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const taskId = t.id;
+                  act(() => V.completeTask(taskId), "Task completed", "complete");
+                }}
+                size="sm"
+              >
+                Complete
+              </Button>
+            )}
           </div>
         </div>
 
